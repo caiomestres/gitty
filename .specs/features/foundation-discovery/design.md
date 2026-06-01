@@ -20,7 +20,7 @@ crates/gitty-core/src/
     └── read.rs       # git2-backed status, fingerprint, HEAD summary, changed files
 ```
 
-Slices 2/3 add `git/write.rs` and `lock.rs` later — not in this slice.
+The `foundation-git-write` and `foundation-lock` features add `git/write.rs` and `lock.rs` later — not here.
 
 ## Data structures
 
@@ -43,7 +43,7 @@ pub struct Repository {
     pub path: PathBuf,                 // canonicalized absolute path
     pub fingerprint: Option<String>,  // root-commit OID hex; None if no commits
     pub state: RepositoryState,
-    // pre-modelled for M4 (C3) — defaulted now, unused in slice 1
+    // pre-modelled for M4 (C3) — defaulted now, unused in this feature
     pub group_id: Option<Uuid>,
     pub tags: Vec<String>,
 }

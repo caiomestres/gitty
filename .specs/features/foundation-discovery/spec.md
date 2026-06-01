@@ -1,11 +1,11 @@
 # Foundation — Repository Discovery & Registry Specification
 
-> Slice 1 of Milestone 1 (Foundation). Slices 2 (Git write layer) and 3 (Lock mechanism)
-> follow. Decisions locked in ADR-0004/0005/0006 and STATE.md D5–D12.
+> First feature of Milestone 1 (Foundation). The `foundation-git-write` and
+> `foundation-lock` features follow. Decisions locked in ADR-0004/0005/0006 and STATE.md D5–D12.
 
 ## Problem Statement
 
-Developers managing many local Git repositories have no single place to discover, track, and inspect them. Before Gitty can run bulk operations or show a health dashboard, it must reliably **find** repositories under user-chosen directories, **remember** them with a stable identity that survives moves, and **report** each one's current Git state. This slice delivers that foundation — headless, through the CLI.
+Developers managing many local Git repositories have no single place to discover, track, and inspect them. Before Gitty can run bulk operations or show a health dashboard, it must reliably **find** repositories under user-chosen directories, **remember** them with a stable identity that survives moves, and **report** each one's current Git state. This feature delivers that foundation — headless, through the CLI.
 
 ## Goals
 
@@ -18,12 +18,12 @@ Developers managing many local Git repositories have no single place to discover
 
 | Feature | Reason |
 | --- | --- |
-| Git write operations (fetch/pull/checkout) | Slice 2 |
-| Lock mechanism | Slice 3 |
+| Git write operations (fetch/pull/checkout) | `foundation-git-write` feature |
+| Lock mechanism | `foundation-lock` feature |
 | Macros / Steps / Jobs | Milestone 4 — Foundation builds primitives only (D5/A2) |
 | Groups / Tags assignment & filtering | Milestone 4 (fields pre-modelled only, per C3) |
 | Bare repositories, worktrees | Out of v1 (D8) |
-| Submodule-aware handling (flag/filter) | Treated as generic nested repos in slice 1 (D8) |
+| Submodule-aware handling (flag/filter) | Treated as generic nested repos in this feature (D8) |
 | Manual re-link resolution for ambiguous matches | Deferred (ADR-0005) |
 | Time-windowed Change Dashboard | Milestone 5 |
 | Following symlinks during scan | Excluded to avoid cycles (D8) |
@@ -58,7 +58,7 @@ Developers managing many local Git repositories have no single place to discover
 
 **User Story**: As a developer, I want to list my tracked repositories and see each one's Git status, so that I can scan the health of my workspace at a glance.
 
-**Why P1**: Discovery is only useful if the results are readable. Completes the vertical slice.
+**Why P1**: Discovery is only useful if the results are readable. Completes the end-to-end feature.
 
 **Acceptance Criteria**:
 

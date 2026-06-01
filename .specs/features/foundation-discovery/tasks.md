@@ -1,6 +1,6 @@
 # Foundation — Discovery & Registry Tasks
 
-> Atomic tasks for slice 1. `[P]` = parallelizable. Each task lists Done-when + Tests + Gate.
+> Atomic tasks for the `foundation-discovery` feature. `[P]` = parallelizable. Each task lists Done-when + Tests + Gate.
 > Build test-first where a behavior is non-trivial (TDD).
 
 ## T1 — Add dependencies & verify git2 builds (Windows)
