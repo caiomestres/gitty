@@ -1,14 +1,28 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! Core domain logic for Gitty — no Tauri or CLI-framework dependencies.
+//!
+//! Read operations use `git2`; write operations (added in a later slice) shell
+//! out to the `git` CLI (ADR-0001). Both the CLI and the desktop app build on
+//! this crate.
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub mod config;
+pub mod error;
+pub mod git;
+pub mod reconcile;
+pub mod repository;
+pub mod scan;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+pub use config::Config;
+pub use error::{CoreError, Result};
+pub use reconcile::ReconcileReport;
+
+use std::path::Path;
+
+/// Add `root` as a Scan Root (if new), scan it, and reconcile the results into
+/// the workspace registry. The caller is responsible for persisting the Config.
+pub fn scan_and_reconcile(config: &mut Config, root: &Path) -> Result<ReconcileReport> {
+    let canonical =
+        dunce::canonicalize(root).map_err(|_| CoreError::PathNotFound(root.to_path_buf()))?;
+    config.workspace.add_scan_root(canonical.clone());
+    let discovered = scan::scan(&canonical)?;
+    Ok(reconcile::reconcile(&mut config.workspace, discovered))
 }

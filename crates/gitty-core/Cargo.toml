@@ -7,6 +7,15 @@ license.workspace = true
 description = "Core domain logic for Gitty — no framework dependencies"
 
 [dependencies]
+dirs = "6.0.0"
+dunce = "1.0.5"
+git2 = { version = "0.21.0", default-features = false }
 serde = { workspace = true }
 serde_json = { workspace = true }
+thiserror = "2.0.18"
+time = { version = "0.3.47", features = ["formatting"] }
 uuid = { version = "1", features = ["v4", "serde"] }
+walkdir = "2.5.0"
+
+[dev-dependencies]
+tempfile = "3.27.0"

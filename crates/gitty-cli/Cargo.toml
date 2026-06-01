@@ -6,6 +6,17 @@ authors.workspace = true
 license.workspace = true
 description = "Standalone CLI for Gitty"
 
+[[bin]]
+name = "gitty"
+path = "src/main.rs"
+
 [dependencies]
 gitty-core = { path = "../gitty-core" }
 clap = { version = "4", features = ["derive"] }
+anyhow = "1.0.102"
+
+[dev-dependencies]
+assert_cmd = "2.2.2"
+git2 = { version = "0.21.0", default-features = false }
+predicates = "3.1.4"
+tempfile = "3.27.0"

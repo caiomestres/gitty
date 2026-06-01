@@ -18,6 +18,14 @@ _Avoid_: root folder, base path, search directory
 A local Git repository discovered by scanning a Scan Root for `.git` directories. The fundamental unit that Gitty operates on. Identified by a Gitty-assigned UUID stored in Config; the filesystem path is recorded but identity survives moves via re-linking.
 _Avoid_: repo, project, service
 
+**Re-linking**:
+The process that preserves a Repository's identity (UUID, Group, Tags) when its filesystem path changes. On rescan, a Repository whose recorded path no longer exists is marked Missing; if exactly one newly-discovered repository shares its content fingerprint, the recorded path is updated and the identity preserved. Ambiguous matches — the same fingerprint shared by clones or forks — are never auto-linked.
+_Avoid_: re-attach, rebind, reconnect
+
+**Missing**:
+A Repository state indicating its recorded filesystem path no longer exists on disk. Missing Repositories are retained in the registry — never silently deleted — so identity and organization survive relocation or temporary disappearance.
+_Avoid_: lost, orphaned, stale
+
 ### Organization
 
 **Group**:
