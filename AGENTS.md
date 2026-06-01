@@ -139,10 +139,48 @@ Skills live in `.agents/skills/`. Invoke by name or trigger phrase.
 
 Common workflows that chain multiple skills:
 
-1. **New Feature**: `grill-with-docs` → `tlc-spec-driven` (specify) → `to-issues` → `tdd` (implement)
-2. **Bug Fix**: `diagnose` → fix → `improve-codebase-architecture` (if root cause is structural)
-3. **Architecture Review**: `zoom-out` → `improve-codebase-architecture` → `grill-with-docs` (to decide)
-4. **Session Handoff**: finish work → `handoff` → new agent picks up
+### Primary Workflow: Feature Development
+
+```
+grill-with-docs → tlc-spec-driven (Specify → Design → Tasks → Execute)
+```
+
+**Hand-off points:**
+
+1. **`grill-with-docs` runs FIRST** for any significant feature. Produces:
+   - `CONTEXT.md` — sharpened domain language (used by all downstream skills)
+   - `docs/adr/` — hard-to-reverse decisions (constraints for design phase)
+   - Validated, stress-tested understanding of scope
+
+2. **`tlc-spec-driven` picks up after grilling.** Entry point: `specify feature`. It:
+   - Reads `CONTEXT.md` for vocabulary (MUST use canonical terms)
+   - Reads `docs/adr/` for architectural constraints
+   - Skips redundant clarification — the grilling already happened
+   - Proceeds through Specify → Design → Tasks → Execute (auto-sized by complexity)
+
+3. **`to-prd`** can be inserted between grilling and tlc-spec-driven to publish a product-level summary as a GitHub issue. The PRD is NOT a replacement for `spec.md` — it's higher-level documentation for stakeholders.
+
+4. **`to-issues`** can be used after tlc-spec-driven's Tasks phase to publish each task as a GitHub issue for external tracking.
+
+### Secondary Workflows
+
+| Workflow | Chain | When |
+|----------|-------|------|
+| Bug Fix | `diagnose` → fix → `improve-codebase-architecture` (if structural) | Hard bugs |
+| Quick Fix | `tlc-spec-driven` quick mode | ≤3 files, obvious fix |
+| Architecture Review | `zoom-out` → `improve-codebase-architecture` → `grill-with-docs` | Before refactors |
+| Session Handoff | finish work → `handoff` → new agent picks up | Switching sessions |
+| Issue Triage | `triage` | Incoming bugs/requests |
+
+### Skills That Stay Independent
+
+These skills are NOT part of the primary chain — they're invoked based on situation:
+
+- `tdd` — can be used during tlc-spec-driven's Execute phase for test-first implementation
+- `diagnose` — independent workflow triggered by bugs
+- `triage` — independent workflow for issue lifecycle
+- `tauri` — always consulted for Tauri-specific code (security, IPC, capabilities)
+- `frontend-design` — always consulted alongside `DESIGN.md` for UI work
 
 ## Domain Documentation
 

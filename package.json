@@ -1,7 +1,7 @@
 {
   "name": "gitty",
   "version": "0.1.0",
-  "description": "",
+  "description": "Workspace synchronization and orchestration platform for Git repositories",
   "type": "module",
   "scripts": {
     "dev": "vite dev",
@@ -9,7 +9,13 @@
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky"
   },
   "license": "MIT",
   "dependencies": {
@@ -20,10 +26,30 @@
     "@sveltejs/adapter-static": "^3.0.6",
     "@sveltejs/kit": "^2.9.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "@tauri-apps/cli": "^2",
+    "@typescript-eslint/parser": "^8.60.0",
+    "eslint": "^9.0.0",
+    "eslint-plugin-svelte": "^3.0.0",
+    "globals": "^16.0.0",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.0.0",
+    "prettier": "^3.0.0",
+    "prettier-plugin-svelte": "^4.0.0",
     "svelte": "^5.0.0",
     "svelte-check": "^4.0.0",
+    "svelte-eslint-parser": "^1.7.0",
     "typescript": "~5.6.2",
+    "typescript-eslint": "^8.0.0",
     "vite": "^6.0.3",
-    "@tauri-apps/cli": "^2"
+    "vitest": "^3.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,svelte}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,css,html}": [
+      "prettier --write"
+    ]
   }
 }

@@ -7,9 +7,11 @@ description: Grilling session that challenges your plan against the existing dom
 
 Interview me relentlessly about every aspect of this plan until we reach a shared understanding. Walk down each branch of the design tree, resolving dependencies between decisions one-by-one. For each question, provide your recommended answer.
 
-Ask the questions one at a time, waiting for feedback on each question before continuing.
+Present ALL questions at once, grouped by domain area. Number each question and provide lettered options with your recommended answer clearly marked. This lets the user answer in bulk (e.g., "Q5: A, Q6: C, Q7: B") or challenge specific recommendations inline.
 
-If a question can be answered by exploring the codebase, explore the codebase instead.
+After the first batch of answers, push back on any decisions that conflict with each other or create scope risks. Present follow-up questions in a second batch if needed.
+
+If a question can be answered by exploring the codebase, explore the codebase instead — don't ask.
 
 </what-to-do>
 
