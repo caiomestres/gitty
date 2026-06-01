@@ -236,6 +236,8 @@ When created, live in `docs/adr/`. Record hard-to-reverse architectural decision
 
 GitHub Issues via `gh` CLI. See `docs/agents/issue-tracker.md`.
 
+**Hard rule (applies to the mandatory `to-prd`/`to-issues`/close-out steps):** write every issue/PRD body and comment from a UTF-8 file via `--body-file` — never inline `--body "..."`/heredoc, and never pipe `gh` output through PowerShell `Out-File`/`>` (it double-encodes UTF-8 and corrupts the body). Full rationale and verification steps in `docs/agents/issue-tracker.md`.
+
 ### Triage labels
 
 Default canonical names (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
