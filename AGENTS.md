@@ -168,8 +168,10 @@ Common workflows that chain multiple skills:
 ### Primary Workflow: Feature Development
 
 ```
-grill-with-docs → tlc-spec-driven (Specify → Design → Tasks → Execute)
+grill-with-docs → to-prd → tlc-spec-driven (Specify → Design → Tasks) → to-issues → Execute → close-out (update PRD + close issues)
 ```
+
+This is an OSS project — work is tracked in the open. `to-prd` and `to-issues` are **mandatory**, not optional.
 
 **Hand-off points:**
 
@@ -178,15 +180,23 @@ grill-with-docs → tlc-spec-driven (Specify → Design → Tasks → Execute)
    - `docs/adr/` — hard-to-reverse decisions (constraints for design phase)
    - Validated, stress-tested understanding of scope
 
-2. **`tlc-spec-driven` picks up after grilling.** Entry point: `specify feature`. It:
+2. **`to-prd` is MANDATORY.** After grilling, publish or refresh the PRD on the issue tracker before speccing.
+   - If no PRD issue exists for the scope, create one.
+   - If a PRD issue already exists (e.g. the v1 PRD, issue #1), do NOT create a duplicate — extend it and track the feature there (see close-out).
+   - The PRD is NOT a replacement for `spec.md` — it's higher-level documentation for stakeholders.
+
+3. **`tlc-spec-driven` picks up after the PRD.** Entry point: `specify feature`. It:
    - Reads `CONTEXT.md` for vocabulary (MUST use canonical terms)
    - Reads `docs/adr/` for architectural constraints
    - Skips redundant clarification — the grilling already happened
-   - Proceeds through Specify → Design → Tasks → Execute (auto-sized by complexity)
+   - Proceeds through Specify → Design → Tasks (auto-sized by complexity)
 
-3. **`to-prd`** can be inserted between grilling and tlc-spec-driven to publish a product-level summary as a GitHub issue. The PRD is NOT a replacement for `spec.md` — it's higher-level documentation for stakeholders.
+4. **`to-issues` is MANDATORY** after the Tasks phase. Break the feature into vertical-slice issues, quiz the user on granularity, then publish each as an issue linked to the PRD (as Parent) with the `ready-for-agent` label. Execute the work against these issues.
 
-4. **`to-issues`** can be used after tlc-spec-driven's Tasks phase to publish each task as a GitHub issue for external tracking.
+5. **Close-out is MANDATORY when a feature completes.** Keep the tracker honest:
+   - Comment progress on the PRD issue and tick the feature's box in the PRD's Progress checklist (add one if absent).
+   - Close the feature's issue(s) with a comment referencing the feature `spec.md` and the delivering commit/PR (`Closes #N`).
+   - Close the PRD issue ONLY when every feature in its scope has shipped — otherwise it stays open.
 
 ### Secondary Workflows
 
