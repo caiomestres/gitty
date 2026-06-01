@@ -2,7 +2,7 @@
 
 Synchronization, orchestration, and workspace health platform for developers managing large collections of Git repositories.
 
-Gitty helps developers and AI tools avoid operating on stale code by providing centralized repository management, bulk operations, intelligent scheduling, and workspace health monitoring.
+Gitty helps developers avoid operating on stale code by providing centralized repository management, bulk operations, intelligent scheduling, and workspace health monitoring.
 
 ## Features
 

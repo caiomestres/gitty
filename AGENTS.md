@@ -109,14 +109,39 @@ Skills live in `.agents/skills/`. Invoke by name or trigger phrase.
 | `tauri` | Tauri framework patterns, security, IPC, capabilities. HIGH-RISK skill — always follow for Tauri code. |
 | `frontend-design` | Create distinctive, polished UI. Consult `DESIGN.md` first, then use this skill for implementation quality. |
 | `diagnose` | Disciplined bug diagnosis: reproduce → minimise → hypothesise → instrument → fix. Use for hard bugs. |
+| `playwright-skill` | Browser automation and end-to-end testing of the webview UI. Take screenshots, drive flows, validate responsive behaviour. |
+
+### Frontend Quality
+
+Apply to the SvelteKit webview only. Gitty is a desktop app, not a website — these are about in-app UI quality, not SEO or public-web concerns. **Always defer to `DESIGN.md` and `frontend-design` first.**
+
+| Skill | When to Use |
+|-------|-------------|
+| `web-design-guidelines` | Review UI code against interface/UX best practices. Use to audit existing UI, not to design it from scratch. |
+| `accessibility` | WCAG 2.1 audit: keyboard nav, focus order, contrast, screen-reader support for the webview. |
+| `core-web-vitals` | Diagnose perceived-perf issues in the webview (LCP/INP/CLS analogues). Layout shift, slow interactions. |
+| `perf-web-optimization` | Reduce webview bundle size, lazy-load heavy components, optimize asset loading. |
 
 ### Architecture
 
 | Skill | When to Use |
 |-------|-------------|
 | `improve-codebase-architecture` | Find deepening opportunities. Surfaces shallow modules, suggests refactors. Produces HTML report. |
-| `modular-decomposition` | Analyze coupling, find duplication, group into domain-aligned units. Use for structural analysis. |
-| `zoom-out` | Quick higher-level perspective of unfamiliar code areas. |
+| `modular-decomposition` | Analyze coupling, find duplication, group components into domain-aligned **modules**. Structural/boundary level. |
+| `tactical-ddd` | Code-level domain modeling inside `src-tauri` (rich entities, value objects, aggregates). Detect/fix anemic models. Distinct from `modular-decomposition` (module boundaries) and `grill-with-docs` (glossary/`CONTEXT.md`). |
+| `zoom-out` | Fast, one-shot higher-level perspective of an unfamiliar code area. |
+| `codenavi` | Deep investigation of unfamiliar territory with a persistent `.notebook/` knowledge base that grows across sessions. Use when `zoom-out` isn't enough and you need durable navigation notes. |
+| `mermaid-studio` | Generate/validate/render Mermaid diagrams (architecture, sequence, ERD, C4) to visualize systems and flows. |
+
+### Security
+
+Precedence when guidance conflicts: **`tauri` (authoritative for IPC/capabilities/CSP) → `security-best-practices` (Rust/TS language-level) → `security-threat-model` (whole-feature threat enumeration) → `best-practices` (generic web hygiene, lowest priority).**
+
+| Skill | When to Use |
+|-------|-------------|
+| `security-best-practices` | Language/framework-specific secure-coding review (Rust backend, TS frontend). |
+| `security-threat-model` | Enumerate trust boundaries, assets, abuse paths, and mitigations before a risky feature. |
+| `best-practices` | Generic web/code hygiene. Lowest priority — defer to the skills above on any overlap. |
 
 ### Workflow & Agents
 
@@ -125,6 +150,7 @@ Skills live in `.agents/skills/`. Invoke by name or trigger phrase.
 | `triage` | Triage issues through a state machine. Use for issue management. |
 | `handoff` | Compact conversation context for another agent to continue. Use when switching sessions. |
 | `caveman` | Ultra-compressed communication. ~75% token savings. Say "caveman mode" to activate. |
+| `gh-fix-ci` | Debug and fix failing GitHub Actions PR checks. Inspects checks/logs via `gh`, drafts a fix plan, implements after approval. |
 | `setup-matt-pocock-skills` | Configure issue tracker, triage labels, domain docs. Run once to enable `triage`, `to-issues`, `to-prd`. |
 
 ### Meta / Skill Creation
@@ -171,6 +197,8 @@ grill-with-docs → tlc-spec-driven (Specify → Design → Tasks → Execute)
 | Architecture Review | `zoom-out` → `improve-codebase-architecture` → `grill-with-docs` | Before refactors |
 | Session Handoff | finish work → `handoff` → new agent picks up | Switching sessions |
 | Issue Triage | `triage` | Incoming bugs/requests |
+
+**If Apply** Suggest a git message for that workflow at the end.
 
 ### Skills That Stay Independent
 

@@ -25,3 +25,6 @@ vite.config.ts.timestamp-*
 .idea/
 *.swp
 *.swo
+
+# codenavi skill knowledge base
+.notebook/
