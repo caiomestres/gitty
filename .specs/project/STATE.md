@@ -51,5 +51,5 @@ _None recorded yet._
 - [x] Add `git2`, `dirs`, `walkdir`, `thiserror` deps to gitty-core; `anyhow` to gitty-cli (+ `time`, `dunce`)
 - [x] Verify `git2` (vendored libgit2) builds on Windows before committing
 - [x] `foundation-discovery` feature — config, repository, scan, git::read, re-link, CLI (scan/list/status) — all 12 DISC reqs verified
-- [ ] `foundation-git-write` feature — git write layer (shell-out runner, fetch/pull/checkout) — spec/design/tasks ready, 11 GWRITE reqs
-- [ ] `foundation-lock` feature — lock mechanism (per-repo PID lock files)
+- [x] `foundation-git-write` feature — git write layer (shell-out runner, fetch/pull/checkout) — all 11 GWRITE reqs verified
+- [x] `foundation-lock` feature — per-repo PID lock files (ADR-0006), stale detection, fail-fast on contention, integrated into batch execution

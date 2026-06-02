@@ -144,11 +144,14 @@ fn cmd_write(op: BatchOp<'_>, label: &str, target: Option<&str>) -> Result<()> {
     let batch = if let Some(target) = target {
         let repo = match_repo(repos, target);
         match repo {
-            Ok(r) => git.run_batch(std::slice::from_ref(r), &op),
+            Ok(r) => git
+                .run_batch_locked(std::slice::from_ref(r), &op)
+                .context("acquiring locks")?,
             Err(e) => bail!("{e}"),
         }
     } else {
-        git.run_batch(repos, &op)
+        git.run_batch_locked(repos, &op)
+            .context("acquiring locks")?
     };
 
     print_batch_results(&batch, label);
@@ -176,15 +179,31 @@ fn print_batch_results(batch: &BatchResult, label: &str) {
             RepoOutcome::Skipped { reason } => {
                 println!("\u{2298} {name:<22} [skipped] {reason}");
             }
+            RepoOutcome::Locked {
+                holder_pid, since, ..
+            } => {
+                println!("\u{2298} {name:<22} [locked] held by process {holder_pid} since {since}");
+            }
         }
     }
 
-    println!(
-        "\n{label}: {} ok, {} failed, {} skipped",
-        batch.success_count(),
-        batch.failed_count(),
-        batch.skipped_count(),
-    );
+    let locked = batch.locked_count();
+    if locked > 0 {
+        println!(
+            "\n{label}: {} ok, {} failed, {} skipped, {} locked",
+            batch.success_count(),
+            batch.failed_count(),
+            batch.skipped_count(),
+            locked,
+        );
+    } else {
+        println!(
+            "\n{label}: {} ok, {} failed, {} skipped",
+            batch.success_count(),
+            batch.failed_count(),
+            batch.skipped_count(),
+        );
+    }
 }
 
 fn format_status_line(name: &str, s: &RepositoryStatus) -> String {

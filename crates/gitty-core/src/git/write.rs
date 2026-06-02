@@ -330,6 +330,10 @@ pub enum RepoOutcome {
     Skipped {
         reason: String,
     },
+    Locked {
+        holder_pid: u32,
+        since: String,
+    },
 }
 
 /// Aggregated result of running a git operation across multiple repositories.
@@ -359,6 +363,13 @@ impl BatchResult {
             .filter(|r| matches!(r.outcome, RepoOutcome::Skipped { .. }))
             .count()
     }
+
+    pub fn locked_count(&self) -> usize {
+        self.results
+            .iter()
+            .filter(|r| matches!(r.outcome, RepoOutcome::Locked { .. }))
+            .count()
+    }
 }
 
 /// The operation to run on each repository during batch execution.
@@ -386,6 +397,94 @@ impl GitBinary {
                         },
                     };
                 }
+
+                let git_result = match op {
+                    BatchOp::Fetch => self.fetch(&r.path),
+                    BatchOp::Pull => self.pull(&r.path),
+                    BatchOp::Checkout(branch) => self.checkout(&r.path, branch),
+                };
+
+                let outcome = match git_result {
+                    Ok(GitResult::Success(output)) => RepoOutcome::Success(output),
+                    Ok(GitResult::Failed { output, category }) => {
+                        RepoOutcome::Failed { output, category }
+                    }
+                    Err(e) => RepoOutcome::Failed {
+                        output: GitOutput {
+                            exit_code: -1,
+                            stdout: String::new(),
+                            stderr: e.to_string(),
+                        },
+                        category: ErrorCategory::Unknown(e.to_string()),
+                    },
+                };
+
+                RepoOperationResult {
+                    repo_path: r.path.clone(),
+                    outcome,
+                }
+            })
+            .collect();
+
+        BatchResult { results }
+    }
+
+    /// Execute `op` against every repository with per-repo locking (ADR-0006).
+    ///
+    /// Same semantics as [`run_batch`] but acquires a [`RepoLock`] before each
+    /// operation. A repository locked by another process produces
+    /// `RepoOutcome::Locked` instead of being attempted.
+    pub fn run_batch_locked(&self, repos: &[Repository], op: &BatchOp<'_>) -> Result<BatchResult> {
+        let locks_dir = crate::config::paths::locks_dir()?;
+        Ok(self.run_batch_locked_in(repos, op, &locks_dir))
+    }
+
+    /// Locked batch execution with a caller-specified locks directory.
+    pub fn run_batch_locked_in(
+        &self,
+        repos: &[Repository],
+        op: &BatchOp<'_>,
+        locks_dir: &Path,
+    ) -> BatchResult {
+        use crate::lock::RepoLock;
+
+        let results = repos
+            .iter()
+            .map(|r| {
+                if r.state == RepositoryState::Missing {
+                    return RepoOperationResult {
+                        repo_path: r.path.clone(),
+                        outcome: RepoOutcome::Skipped {
+                            reason: "repository path not found".into(),
+                        },
+                    };
+                }
+
+                let _lock = match RepoLock::acquire_in(r.id, locks_dir) {
+                    Ok(lock) => lock,
+                    Err(CoreError::LockContention { pid, since, .. }) => {
+                        return RepoOperationResult {
+                            repo_path: r.path.clone(),
+                            outcome: RepoOutcome::Locked {
+                                holder_pid: pid,
+                                since,
+                            },
+                        };
+                    }
+                    Err(e) => {
+                        return RepoOperationResult {
+                            repo_path: r.path.clone(),
+                            outcome: RepoOutcome::Failed {
+                                output: GitOutput {
+                                    exit_code: -1,
+                                    stdout: String::new(),
+                                    stderr: format!("lock error: {e}"),
+                                },
+                                category: ErrorCategory::Unknown(format!("lock error: {e}")),
+                            },
+                        };
+                    }
+                };
 
                 let git_result = match op {
                     BatchOp::Fetch => self.fetch(&r.path),

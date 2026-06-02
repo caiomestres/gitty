@@ -30,6 +30,14 @@ pub enum CoreError {
     /// No `git` binary found on `PATH`.
     #[error("git executable not found on PATH — please install Git and ensure it is in your PATH")]
     GitNotFound,
+
+    /// Another process holds the lock for a Repository (ADR-0006).
+    #[error("repository {repo_id} is locked by process {pid} (since {since})")]
+    LockContention {
+        repo_id: uuid::Uuid,
+        pid: u32,
+        since: String,
+    },
 }
 
 pub type Result<T> = std::result::Result<T, CoreError>;

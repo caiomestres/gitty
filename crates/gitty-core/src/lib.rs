@@ -7,6 +7,7 @@
 pub mod config;
 pub mod error;
 pub mod git;
+pub mod lock;
 pub mod reconcile;
 pub mod repository;
 pub mod scan;
