@@ -62,6 +62,35 @@ Follow the `tauri` skill for all Tauri configuration, IPC commands, and capabili
 - Prefer async Tauri commands over blocking ones
 - Tests before implementation when complexity warrants it (see `tdd` skill)
 
+### Implementation Discipline
+
+These rules are **non-negotiable**. They exist because agents have violated them.
+
+**Before writing any code, read the specs:**
+
+1. **Check `.specs/` FIRST.** If a `.specs/features/<feature>/` directory exists for the work being done, you MUST read `spec.md`, `design.md`, and `tasks.md` before writing a single line of code. These are the source of truth — not the user's summary, not your assumptions.
+2. **Read `CONTEXT.md`.** Every type name, function name, and variable that represents a domain concept MUST use the canonical term from the glossary. If `CONTEXT.md` says "Repository", do not call it "repo" in code. If the design says `GitOutput`, do not rename it to `CommandOutput`.
+3. **Read relevant ADRs.** Decisions in `docs/adr/` are constraints, not suggestions. If ADR-0001 says "shell out with `GIT_SSH_COMMAND`", you set that env var.
+4. **Read `STATE.md`.** It tracks decisions (D1–D16+), blockers, and lessons from prior sessions. Respect all recorded decisions.
+
+**During implementation:**
+
+5. **Follow the design document exactly.** Data structure names, field names, function signatures, and module layout in `design.md` are the contract. Do not rename types, omit fields, add flags not in the design, or change command arguments (e.g., `git pull` vs `git pull --ff-only`) without explicit user approval.
+6. **Implement task-by-task, not in bulk.** Follow `tasks.md` sequentially. Each task has Done-when criteria and a Gate check. Run the gate after each task. Do not batch all tasks into one implementation pass.
+7. **Use TDD when `tasks.md` says so.** If the task says "Build test-first" or references the `tdd` skill, follow the red-green-refactor loop. Write one test, make it pass, repeat. Do not write all tests and all implementation in one batch.
+8. **Run the full gate, not just `cargo test`.** The gate for Rust code is: `cargo test && cargo clippy -- -D warnings && cargo fmt --check`. Never skip clippy or fmt.
+
+**After implementation:**
+
+9. **Update traceability.** After completing tasks, update `tasks.md` status, `spec.md` requirement status, and `STATE.md` todos. The specs are living documents.
+10. **Run `thermo-nuclear-code-quality-review`.** This is the mandatory review gate before close-out (see Primary Workflow).
+
+**After every code change that could be committed:**
+
+11. **Always suggest a git commit message.** Every response that modifies code, config, or documentation MUST end with a suggested `git commit` message (or messages, if changes should be split into atomic commits). Use conventional commits format (`feat`, `fix`, `docs`, `chore`, `refactor`, `test`). Include the scope (e.g., `feat(core):`, `docs:`). No exceptions — if you changed files, you suggest a message.
+
+**If you catch yourself about to skip any of these steps, STOP.** Ask the user: "The project has a spec/design for this feature. Should I follow it, or are you asking me to deviate?"
+
 ## Development Commands
 
 ```bash
@@ -110,6 +139,12 @@ Skills live in `.agents/skills/`. Invoke by name or trigger phrase.
 | `frontend-design` | Create distinctive, polished UI. Consult `DESIGN.md` first, then use this skill for implementation quality. |
 | `diagnose` | Disciplined bug diagnosis: reproduce → minimise → hypothesise → instrument → fix. Use for hard bugs. |
 | `playwright-skill` | Browser automation and end-to-end testing of the webview UI. Take screenshots, drive flows, validate responsive behaviour. |
+
+### Code Quality Review
+
+| Skill | When to Use |
+|-------|-------------|
+| `thermo-nuclear-code-quality-review` | Extremely strict maintainability review for abstraction quality, file size, and spaghetti-condition growth. **Auto-triggers after every Execute phase** — see Primary Workflow below. |
 
 ### Frontend Quality
 
@@ -168,7 +203,7 @@ Common workflows that chain multiple skills:
 ### Primary Workflow: Feature Development
 
 ```
-grill-with-docs → to-prd → tlc-spec-driven (Specify → Design → Tasks) → to-issues → Execute → close-out (update PRD + close issues)
+grill-with-docs → to-prd → tlc-spec-driven (Specify → Design → Tasks) → to-issues → Execute → thermo-nuclear review → close-out
 ```
 
 This is an OSS project — work is tracked in the open. `to-prd` and `to-issues` are **mandatory**, not optional.
@@ -193,7 +228,9 @@ This is an OSS project — work is tracked in the open. `to-prd` and `to-issues`
 
 4. **`to-issues` is MANDATORY** after the Tasks phase. Break the feature into vertical-slice issues, quiz the user on granularity, then publish each as an issue linked to the PRD (as Parent) with the `ready-for-agent` label. Execute the work against these issues.
 
-5. **Close-out is MANDATORY when a feature completes.** Keep the tracker honest:
+5. **`thermo-nuclear-code-quality-review` is MANDATORY after Execute.** Run the review against the current branch's changes before closing out. This is the quality gate — no merge without it. If the review surfaces structural issues, fix them before proceeding to close-out. The review checks for: structural regressions, missed simplification opportunities, spaghetti growth, file-size explosions, abstraction/boundary problems, and architecture-layer leaks.
+
+6. **Close-out is MANDATORY when a feature completes.** Keep the tracker honest:
    - Comment progress on the PRD issue and tick the feature's box in the PRD's Progress checklist (add one if absent).
    - Close the feature's issue(s) with a comment referencing the feature `spec.md` and the delivering commit/PR (`Closes #N`).
    - Close the PRD issue ONLY when every feature in its scope has shipped — otherwise it stays open.
@@ -202,13 +239,13 @@ This is an OSS project — work is tracked in the open. `to-prd` and `to-issues`
 
 | Workflow | Chain | When |
 |----------|-------|------|
-| Bug Fix | `diagnose` → fix → `improve-codebase-architecture` (if structural) | Hard bugs |
-| Quick Fix | `tlc-spec-driven` quick mode | ≤3 files, obvious fix |
+| Bug Fix | `diagnose` → fix → `thermo-nuclear-code-quality-review` | Hard bugs |
+| Quick Fix | `tlc-spec-driven` quick mode → `thermo-nuclear-code-quality-review` (if >1 file changed) | ≤3 files, obvious fix |
 | Architecture Review | `zoom-out` → `improve-codebase-architecture` → `grill-with-docs` | Before refactors |
 | Session Handoff | finish work → `handoff` → new agent picks up | Switching sessions |
 | Issue Triage | `triage` | Incoming bugs/requests |
 
-**If Apply** Suggest a git message for that workflow at the end.
+**Every workflow that changes files MUST end with a suggested git commit message.** This is not optional — see rule 11 in Implementation Discipline.
 
 ### Skills That Stay Independent
 
@@ -219,6 +256,17 @@ These skills are NOT part of the primary chain — they're invoked based on situ
 - `triage` — independent workflow for issue lifecycle
 - `tauri` — always consulted for Tauri-specific code (security, IPC, capabilities)
 - `frontend-design` — always consulted alongside `DESIGN.md` for UI work
+
+### When `thermo-nuclear-code-quality-review` Auto-Triggers
+
+The review is mandatory and automatic in these situations:
+
+1. **After the Execute phase** of any feature in the primary workflow — before close-out.
+2. **After bug fixes** that touch more than cosmetic changes.
+3. **After quick fixes** that modify more than one file.
+4. **When the user says "ready to merge"** or asks you to create a PR — review first.
+
+The review does NOT trigger for: documentation-only changes, config/CI changes, or single-line fixes.
 
 ## Domain Documentation
 

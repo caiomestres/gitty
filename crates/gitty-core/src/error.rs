@@ -26,6 +26,10 @@ pub enum CoreError {
     /// The platform config directory could not be resolved.
     #[error("could not resolve a configuration directory for this platform")]
     NoConfigDir,
+
+    /// No `git` binary found on `PATH`.
+    #[error("git executable not found on PATH — please install Git and ensure it is in your PATH")]
+    GitNotFound,
 }
 
 pub type Result<T> = std::result::Result<T, CoreError>;

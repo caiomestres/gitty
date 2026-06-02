@@ -1,10 +1,11 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 use gitty_core::config::Config;
 use gitty_core::git::read::{self, RepositoryStatus};
+use gitty_core::git::write::{match_repo, BatchOp, BatchResult, GitBinary, RepoOutcome};
 use gitty_core::repository::RepositoryState;
 use gitty_core::scan_and_reconcile;
 
@@ -27,6 +28,24 @@ enum Commands {
     List,
     /// Show the Git status of each registered repository.
     Status,
+    /// Fetch all remotes for every registered repository (or a single one).
+    Fetch {
+        /// Optional repository path or directory name to target.
+        repo: Option<String>,
+    },
+    /// Pull every registered repository (or a single one).
+    Pull {
+        /// Optional repository path or directory name to target.
+        repo: Option<String>,
+    },
+    /// Checkout a branch in every registered repository (or a single one).
+    Checkout {
+        /// The branch name to check out.
+        branch: String,
+        /// Optional repository path or directory name to target.
+        #[arg(long)]
+        repo: Option<String>,
+    },
 }
 
 fn main() -> ExitCode {
@@ -44,6 +63,11 @@ fn run() -> Result<()> {
         Commands::Scan { path } => cmd_scan(&path),
         Commands::List => cmd_list(),
         Commands::Status => cmd_status(),
+        Commands::Fetch { repo } => cmd_write(BatchOp::Fetch, "fetch", repo.as_deref()),
+        Commands::Pull { repo } => cmd_write(BatchOp::Pull, "pull", repo.as_deref()),
+        Commands::Checkout { branch, repo } => {
+            cmd_write(BatchOp::Checkout(&branch), "checkout", repo.as_deref())
+        }
     }
 }
 
@@ -106,6 +130,61 @@ fn cmd_status() -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn cmd_write(op: BatchOp<'_>, label: &str, target: Option<&str>) -> Result<()> {
+    let config = Config::load().context("loading config")?;
+    let repos = &config.workspace.repositories;
+    if repos.is_empty() {
+        println!("No repositories tracked yet. Run `gitty scan <path>` to discover some.");
+        return Ok(());
+    }
+    let git = GitBinary::resolve().context("locating git")?;
+
+    let batch = if let Some(target) = target {
+        let repo = match_repo(repos, target);
+        match repo {
+            Ok(r) => git.run_batch(std::slice::from_ref(r), &op),
+            Err(e) => bail!("{e}"),
+        }
+    } else {
+        git.run_batch(repos, &op)
+    };
+
+    print_batch_results(&batch, label);
+    Ok(())
+}
+
+fn print_batch_results(batch: &BatchResult, label: &str) {
+    for result in &batch.results {
+        let name = result
+            .repo_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("<repo>");
+
+        match &result.outcome {
+            RepoOutcome::Success(_) => {
+                println!("\u{2713} {name:<22} {label}ed successfully");
+            }
+            RepoOutcome::Failed {
+                category, output, ..
+            } => {
+                let detail = output.stderr.lines().next().unwrap_or("").trim();
+                println!("\u{2717} {name:<22} [{category}] {detail}");
+            }
+            RepoOutcome::Skipped { reason } => {
+                println!("\u{2298} {name:<22} [skipped] {reason}");
+            }
+        }
+    }
+
+    println!(
+        "\n{label}: {} ok, {} failed, {} skipped",
+        batch.success_count(),
+        batch.failed_count(),
+        batch.skipped_count(),
+    );
 }
 
 fn format_status_line(name: &str, s: &RepositoryStatus) -> String {

@@ -16,6 +16,10 @@
 | D10 | Git write = shell-out runner `(path, args) -> {code, stdout, stderr}`; git located via PATH, validated at startup (`foundation-git-write` feature) | ADR-0001 | 2026-06-01 |
 | D11 | Lock = per-repo PID+timestamp lock file in config dir, stale detection, fail-fast on contention (`foundation-lock` feature) | ADR-0006 | 2026-06-01 |
 | D12 | Errors = `thiserror` in gitty-core, `anyhow` at CLI boundary | Idiomatic Rust, tiny deps | 2026-06-01 |
+| D13 | Git write runner = `std::process::Command`, no `which` crate; `GIT_TERMINAL_PROMPT=0` + SSH `BatchMode=yes` to prevent interactive prompts | ADR-0001; simplest safe approach | 2026-06-02 |
+| D14 | Error classification = substring matching on stderr (Network, Conflict, Auth, BranchNotFound, DirtyWorkTree, NoUpstream, Unknown); no retry in Foundation | Actionable categories for CLI/GUI without Macro complexity | 2026-06-02 |
+| D15 | Batch execution = sequential in v1; parallel requires Lock feature | Lock not yet built; sequential is correct and simple | 2026-06-02 |
+| D16 | Foundation git write scope = fetch, pull, checkout; other operations added incrementally | Covers the primary bulk use cases; rebase/merge/stash deferred | 2026-06-02 |
 
 ## Blockers
 
@@ -47,5 +51,5 @@ _None recorded yet._
 - [x] Add `git2`, `dirs`, `walkdir`, `thiserror` deps to gitty-core; `anyhow` to gitty-cli (+ `time`, `dunce`)
 - [x] Verify `git2` (vendored libgit2) builds on Windows before committing
 - [x] `foundation-discovery` feature — config, repository, scan, git::read, re-link, CLI (scan/list/status) — all 12 DISC reqs verified
-- [ ] `foundation-git-write` feature — git write layer (shell-out runner, fetch/pull)
+- [ ] `foundation-git-write` feature — git write layer (shell-out runner, fetch/pull/checkout) — spec/design/tasks ready, 11 GWRITE reqs
 - [ ] `foundation-lock` feature — lock mechanism (per-repo PID lock files)
