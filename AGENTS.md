@@ -84,12 +84,27 @@ These rules are **non-negotiable**. They exist because agents have violated them
 
 9. **Update traceability.** After completing tasks, update `tasks.md` status, `spec.md` requirement status, and `STATE.md` todos. The specs are living documents.
 10. **Run `thermo-nuclear-code-quality-review`.** This is the mandatory review gate before close-out (see Primary Workflow).
+11. **Close out on GitHub — in the same response.** When a feature or issue is complete, close the corresponding GitHub issue(s) with a completion comment via `gh`, and comment progress on the PRD issue. Do NOT defer this to a follow-up or skip it because the user didn't explicitly ask. The full close-out procedure is in the Primary Workflow (step 6), but the act of closing is part of "done" — not a separate task. If a GitHub issue exists for the work, it gets closed before you present results to the user.
 
 **After every code change that could be committed:**
 
-11. **Always suggest a git commit message.** Every response that modifies code, config, or documentation MUST end with a suggested `git commit` message (or messages, if changes should be split into atomic commits). Use conventional commits format (`feat`, `fix`, `docs`, `chore`, `refactor`, `test`). Include the scope (e.g., `feat(core):`, `docs:`). No exceptions — if you changed files, you suggest a message.
+12. **Always suggest a git commit message.** Every response that modifies code, config, or documentation MUST end with a suggested `git commit` message (or messages, if changes should be split into atomic commits). Use conventional commits format (`feat`, `fix`, `docs`, `chore`, `refactor`, `test`). Include the scope (e.g., `feat(core):`, `docs:`). No exceptions — if you changed files, you suggest a message.
 
 **If you catch yourself about to skip any of these steps, STOP.** Ask the user: "The project has a spec/design for this feature. Should I follow it, or are you asking me to deviate?"
+
+### Continuous Improvement
+
+When you notice a clear, concrete improvement to project documentation during your work, make the fix immediately — do not just note it or defer it.
+
+This applies to:
+- **`AGENTS.md`** — stale rules, wrong commands, missing workflow steps, references to things that no longer exist.
+- **`.agents/skills/`** — skill files that are incomplete, have stale patterns, or are missing guidance you had to learn the hard way during a session.
+- **`docs/adr/`** — decisions that have been superseded, need clarification, or are missing context that caused confusion.
+- **`STATE.md`** — lessons, decisions, or deferred ideas discovered during work.
+
+**When to just do it:** the improvement is objectively correct — fixing a wrong command, removing a dead reference, adding a missing step that caused a failure, recording a lesson learned.
+
+**When to ask first:** the change is subjective, reverses a prior decision, or changes project direction.
 
 ## Development Commands
 
@@ -106,14 +121,14 @@ npm run tauri build
 # Type checking
 npm run check
 
-# Rust tests
-cd src-tauri && cargo test
+# Rust tests (workspace — all crates)
+cargo test
 
-# Rust linting
-cd src-tauri && cargo clippy -- -D warnings
+# Rust linting (workspace — all crates)
+cargo clippy -- -D warnings
 
-# Rust formatting
-cd src-tauri && cargo fmt
+# Rust formatting (workspace — all crates)
+cargo fmt
 ```
 
 ## Skills Catalog
@@ -245,7 +260,7 @@ This is an OSS project — work is tracked in the open. `to-prd` and `to-issues`
 | Session Handoff | finish work → `handoff` → new agent picks up | Switching sessions |
 | Issue Triage | `triage` | Incoming bugs/requests |
 
-**Every workflow that changes files MUST end with a suggested git commit message.** This is not optional — see rule 11 in Implementation Discipline.
+**Every workflow that changes files MUST end with a suggested git commit message.** This is not optional — see rule 12 in Implementation Discipline.
 
 ### Skills That Stay Independent
 
