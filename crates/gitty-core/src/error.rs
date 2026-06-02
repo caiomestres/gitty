@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use uuid::Uuid;
+
 /// Errors produced by the core domain layer.
 ///
 /// Library code returns typed errors; the CLI/GUI boundary maps these to
@@ -38,6 +40,36 @@ pub enum CoreError {
         pid: u32,
         since: String,
     },
+
+    #[error("group not found: {0}")]
+    GroupNotFound(Uuid),
+
+    #[error("repository not found: {0}")]
+    RepositoryNotFound(Uuid),
+
+    #[error("macro not found: {0}")]
+    MacroNotFound(String),
+
+    #[error("duplicate group name '{name}' under the same parent")]
+    DuplicateGroupName {
+        name: String,
+        parent_id: Option<Uuid>,
+    },
+
+    #[error("duplicate macro name '{0}'")]
+    DuplicateMacroName(String),
+
+    #[error("cannot delete the default '{0}' group")]
+    CannotDeleteDefaultGroup(String),
+
+    #[error("cannot modify the default '{0}' group")]
+    CannotModifyDefaultGroup(String),
+
+    #[error("moving group {id} would create a cycle")]
+    CycleDetected { id: Uuid },
+
+    #[error("tag name must not be empty")]
+    EmptyTag,
 }
 
 pub type Result<T> = std::result::Result<T, CoreError>;

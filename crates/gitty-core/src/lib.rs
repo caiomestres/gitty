@@ -6,15 +6,27 @@
 
 pub mod config;
 pub mod error;
+pub mod execution;
 pub mod git;
+pub mod group;
+pub mod job;
 pub mod lock;
+pub mod macro_def;
 pub mod reconcile;
 pub mod repository;
 pub mod scan;
+pub mod selection;
+pub mod tag;
 
 pub use config::Config;
 pub use error::{CoreError, Result};
+pub use execution::execute_macro;
+pub use group::{Group, GroupTreeNode, UNGROUPED_GROUP_NAME};
+pub use job::{Job, JobStatus, StepResult};
+pub use macro_def::{GitOp, MacroDef, ShellStep, Step, StepKind};
 pub use reconcile::ReconcileReport;
+pub use selection::Selection;
+pub use tag::FAVORITE_TAG;
 
 use std::path::Path;
 

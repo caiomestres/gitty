@@ -3,6 +3,9 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::group::Group;
+use crate::macro_def::MacroDef;
+
 /// Lifecycle state of a registered Repository.
 ///
 /// `Missing` means the recorded path no longer exists on disk; the Repository
@@ -61,6 +64,10 @@ pub struct Workspace {
     pub scan_roots: Vec<ScanRoot>,
     #[serde(default)]
     pub repositories: Vec<Repository>,
+    #[serde(default)]
+    pub groups: Vec<Group>,
+    #[serde(default)]
+    pub macros: Vec<MacroDef>,
 }
 
 impl Workspace {
@@ -79,6 +86,10 @@ impl Workspace {
 
     pub fn find_by_id(&self, id: Uuid) -> Option<&Repository> {
         self.repositories.iter().find(|r| r.id == id)
+    }
+
+    pub(crate) fn find_repo_mut(&mut self, id: Uuid) -> Option<&mut Repository> {
+        self.repositories.iter_mut().find(|r| r.id == id)
     }
 }
 

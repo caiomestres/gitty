@@ -90,14 +90,15 @@ pub fn reconcile(workspace: &mut Workspace, discovered: Vec<DiscoveredRepo>) -> 
         report.relinked += 1;
     }
 
-    // 4. Register the remaining candidates fresh.
+    // 4. Register the remaining candidates fresh (assigned to Ungrouped).
+    let ungrouped_id = workspace.ensure_ungrouped();
     for (idx, disc) in new_candidates.into_iter().enumerate() {
         if relinked_new[idx] {
             continue;
         }
-        workspace
-            .repositories
-            .push(Repository::new(disc.path, disc.fingerprint));
+        let mut repo = Repository::new(disc.path, disc.fingerprint);
+        repo.group_id = Some(ungrouped_id);
+        workspace.repositories.push(repo);
         report.new += 1;
     }
 

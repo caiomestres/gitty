@@ -62,6 +62,16 @@ Follow the `tauri` skill for all Tauri configuration, IPC commands, and capabili
 - Prefer async Tauri commands over blocking ones
 - Tests before implementation when complexity warrants it (see `tdd` skill)
 
+### Workflow Enforcement
+
+These rules are **non-negotiable**. They exist because agents have skipped them entirely.
+
+**HARD STOP — Before writing ANY feature code, the Primary Workflow MUST execute:**
+
+0. **NEVER skip the Primary Workflow for significant features.** The workflow is: `grill-with-docs → to-prd → tlc-spec-driven (Specify → Design → Tasks) → to-issues → Execute → thermo-nuclear review → close-out`. If the user asks to "start" or "implement" a milestone, feature, or multi-file change, you MUST begin with `grill-with-docs`, NOT with writing code. If you catch yourself about to write code without having run the workflow, STOP and ask: "This is a significant feature. The project requires the full workflow (grilling → PRD → spec → issues → execute → review). Should I start with the grilling session?"
+1. **NEVER delegate implementation to subagents without the workflow.** The Task tool is for executing individual tasks from `tasks.md` AFTER the Specify → Design → Tasks phases have completed. It is NOT a shortcut to skip planning.
+2. **Multi-milestone work is NOT an excuse to skip planning.** Even when the user asks to "start milestones 2, 3, and 4 at the same time", you MUST run the workflow for each milestone. Parallel execution happens at the Tasks/Execute phase, not by skipping Specify and Design.
+
 ### Implementation Discipline
 
 These rules are **non-negotiable**. They exist because agents have violated them.
