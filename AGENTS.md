@@ -98,7 +98,12 @@ These rules are **non-negotiable**. They exist because agents have violated them
 
 **After every code change that could be committed:**
 
-12. **Always suggest a git commit message.** Every response that modifies code, config, or documentation MUST end with a suggested `git commit` message (or messages, if changes should be split into atomic commits). Use conventional commits format (`feat`, `fix`, `docs`, `chore`, `refactor`, `test`). Include the scope (e.g., `feat(core):`, `docs:`). No exceptions — if you changed files, you suggest a message.
+12. **HARD STOP — Commit messages are NOT optional.** The LAST thing in every response that modifies files MUST be one or more ready-to-run `git commit` commands (or a clearly formatted commit message block if the user hasn't asked you to commit). This is a delivery gate, not a nice-to-have — a response without it is **incomplete**. Rules:
+    - Use conventional commits (`feat`, `fix`, `docs`, `chore`, `refactor`, `test`) with scope (e.g., `refactor(core):`, `fix(tauri):`).
+    - Split into atomic commits when changes span unrelated concerns (e.g., separate `refactor(core):` from `chore(tauri):`).
+    - If the response is long, the commit block goes at the **very end** — after the summary, after the explanation, after everything. It is the final artifact the user sees.
+    - If you realize you forgot it mid-response, append it immediately. Never defer to a follow-up.
+    - No exceptions. Changed a file? End with the commit.
 
 **If you catch yourself about to skip any of these steps, STOP.** Ask the user: "The project has a spec/design for this feature. Should I follow it, or are you asking me to deviate?"
 
@@ -270,7 +275,7 @@ This is an OSS project — work is tracked in the open. `to-prd` and `to-issues`
 | Session Handoff | finish work → `handoff` → new agent picks up | Switching sessions |
 | Issue Triage | `triage` | Incoming bugs/requests |
 
-**Every workflow that changes files MUST end with a suggested git commit message.** This is not optional — see rule 12 in Implementation Discipline.
+**HARD STOP — Every workflow that changes files MUST end with ready-to-run commit message(s).** See rule 12. A response that changed files but has no commit block is INCOMPLETE — fix it before ending your turn.
 
 ### Skills That Stay Independent
 
