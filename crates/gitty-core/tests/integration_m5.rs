@@ -1,6 +1,5 @@
 mod common;
 
-use std::collections::HashMap;
 use std::path::Path;
 
 use gitty_core::git::read;
@@ -39,20 +38,15 @@ fn scheduler_triggers_health_evaluation_and_notification() {
     assert!(config.last_run.is_some());
     assert!(config.next_run.is_some());
 
-    let checks = health::default_checks();
     let thresholds = HealthThresholds::default();
-    let mut statuses = HashMap::new();
-    for repo in &repos {
-        if let Ok(s) = read::read_status(&repo.path) {
-            statuses.insert(repo.id, s);
-        }
-    }
-    let health = health::evaluate_workspace(&repos, &statuses, &checks, &thresholds);
-    assert!(health.score > 0.0);
+    let repo_refs: Vec<&Repository> = repos.iter().collect();
+    let statuses = health::collect_statuses(&repo_refs);
+    let wh = health::evaluate_workspace(&repo_refs, &statuses, &thresholds);
+    assert!(wh.score > 0.0);
 
     let notif = notification::generate_health_notification(
         None,
-        &health,
+        &wh,
         &NotificationTrigger::OnSchedulerComplete,
     );
     assert!(notif.is_some());
@@ -66,7 +60,7 @@ fn corrupt_health_cache_triggers_fresh_evaluation() {
     let loaded = health_cache::load(dir.path());
     assert!(loaded.is_none());
 
-    let health = gitty_core::WorkspaceHealth {
+    let wh = gitty_core::WorkspaceHealth {
         score: 100.0,
         total_repos: 1,
         critical_count: 0,
@@ -74,7 +68,7 @@ fn corrupt_health_cache_triggers_fresh_evaluation() {
         healthy_count: 1,
         repositories: vec![],
     };
-    health_cache::save(&health, dir.path()).unwrap();
+    health_cache::save(&wh, dir.path()).unwrap();
     let reloaded = health_cache::load(dir.path()).unwrap();
     assert!((reloaded.workspace_health.score - 100.0).abs() < 0.01);
 }
@@ -127,16 +121,9 @@ fn empty_repo_health_checks_skip_appropriately() {
 
     let repo = Repository::new(dir.path().to_path_buf(), None);
     let status = read::read_status(&repo.path).unwrap();
-    let checks = health::default_checks();
     let thresholds = HealthThresholds::default();
 
-    let rh = health::evaluate_repository(
-        &repo,
-        &status,
-        &checks,
-        &thresholds,
-        OffsetDateTime::now_utc(),
-    );
+    let rh = health::evaluate_repository(&repo, &status, &thresholds, OffsetDateTime::now_utc());
     assert_eq!(rh.worst_severity, CheckSeverity::Healthy);
 
     for check in &rh.checks {
@@ -154,7 +141,7 @@ fn empty_repo_health_checks_skip_appropriately() {
 #[test]
 fn advanced_trigger_respects_day_constraint() {
     let now = OffsetDateTime::now_utc();
-    let today = DayOfWeek::from_weekday(now.weekday());
+    let today = DayOfWeek::from(now.weekday());
 
     let config = SchedulerConfig {
         enabled: true,
@@ -175,7 +162,7 @@ fn advanced_trigger_respects_day_constraint() {
             interval_minutes: 1,
             window_start: TimeOfDay::from_hm(0, 0),
             window_end: TimeOfDay::from_hm(23, 59),
-            days: vec![], // no valid days
+            days: vec![],
         },
         ..Default::default()
     };
@@ -186,7 +173,7 @@ fn advanced_trigger_respects_day_constraint() {
 #[test]
 fn advanced_trigger_midnight_crossing_window() {
     let now = OffsetDateTime::now_utc();
-    let today = DayOfWeek::from_weekday(now.weekday());
+    let today = DayOfWeek::from(now.weekday());
 
     let config = SchedulerConfig {
         enabled: true,
@@ -208,13 +195,13 @@ fn advanced_trigger_midnight_crossing_window() {
 fn compute_next_run_advanced_returns_valid_slot() {
     let now = OffsetDateTime::now_utc();
     let all_days = vec![
-        DayOfWeek::Mon,
-        DayOfWeek::Tue,
-        DayOfWeek::Wed,
-        DayOfWeek::Thu,
-        DayOfWeek::Fri,
-        DayOfWeek::Sat,
-        DayOfWeek::Sun,
+        DayOfWeek::MON,
+        DayOfWeek::TUE,
+        DayOfWeek::WED,
+        DayOfWeek::THU,
+        DayOfWeek::FRI,
+        DayOfWeek::SAT,
+        DayOfWeek::SUN,
     ];
 
     let config = SchedulerConfig {
@@ -271,6 +258,27 @@ fn notification_purge_respects_ttl() {
 }
 
 #[test]
+fn notification_history_sidecar_round_trip() {
+    use gitty_core::notification::{Notification, Severity};
+    use uuid::Uuid;
+
+    let dir = tempfile::tempdir().unwrap();
+    let notifications = vec![Notification {
+        id: Uuid::new_v4(),
+        timestamp: OffsetDateTime::now_utc(),
+        severity: Severity::Info,
+        title: "test".into(),
+        body: "sidecar test".into(),
+        read: false,
+    }];
+
+    notification::save_history(&notifications, dir.path()).unwrap();
+    let loaded = notification::load_history(dir.path());
+    assert_eq!(loaded.len(), 1);
+    assert_eq!(loaded[0].title, "test");
+}
+
+#[test]
 fn scheduler_config_serde_round_trip() {
     let now = OffsetDateTime::now_utc();
     let config = SchedulerConfig {
@@ -280,7 +288,7 @@ fn scheduler_config_serde_round_trip() {
             interval_minutes: 15,
             window_start: TimeOfDay::from_hm(9, 0),
             window_end: TimeOfDay::from_hm(17, 0),
-            days: vec![DayOfWeek::Mon, DayOfWeek::Fri],
+            days: vec![DayOfWeek::MON, DayOfWeek::FRI],
         },
         power: scheduler::PowerConfig {
             pause_on_battery: true,

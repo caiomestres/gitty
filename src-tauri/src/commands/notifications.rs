@@ -16,38 +16,38 @@ pub struct NotificationDto {
     pub read: bool,
 }
 
-fn to_dto(n: &gitty_core::Notification) -> NotificationDto {
-    NotificationDto {
-        id: n.id.to_string(),
-        timestamp: n.timestamp.format(&Rfc3339).unwrap_or_default(),
-        severity: n.severity,
-        title: n.title.clone(),
-        body: n.body.clone(),
-        read: n.read,
+impl From<&gitty_core::Notification> for NotificationDto {
+    fn from(n: &gitty_core::Notification) -> Self {
+        Self {
+            id: n.id.to_string(),
+            timestamp: n.timestamp.format(&Rfc3339).unwrap_or_default(),
+            severity: n.severity,
+            title: n.title.clone(),
+            body: n.body.clone(),
+            read: n.read,
+        }
     }
 }
 
 #[tauri::command]
 pub fn get_notifications(state: State<'_, AppState>) -> Result<Vec<NotificationDto>, AppError> {
-    state.with_config_write(|config| {
-        notification::purge_expired(&mut config.notification_history, 7);
-        Ok(config.notification_history.iter().map(to_dto).collect())
-    })
+    let config_dir = state.config_dir()?;
+    let mut history = notification::load_history(&config_dir);
+    notification::purge_expired(&mut history, 7);
+    let _ = notification::save_history(&history, &config_dir);
+    Ok(history.iter().map(NotificationDto::from).collect())
 }
 
 #[tauri::command]
 pub fn mark_notification_read(state: State<'_, AppState>, id: String) -> Result<(), AppError> {
     let uuid = super::parse_uuid(&id)?;
-    state.with_config_write(|config| {
-        if let Some(notif) = config
-            .notification_history
-            .iter_mut()
-            .find(|n| n.id == uuid)
-        {
-            notif.read = true;
-        }
-        Ok(())
-    })
+    let config_dir = state.config_dir()?;
+    let mut history = notification::load_history(&config_dir);
+    if let Some(notif) = history.iter_mut().find(|n| n.id == uuid) {
+        notif.read = true;
+        let _ = notification::save_history(&history, &config_dir);
+    }
+    Ok(())
 }
 
 #[tauri::command]

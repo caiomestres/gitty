@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::error::Result;
-use crate::process::is_process_alive;
+use crate::process::{is_process_alive, terminate_process};
 
 use super::SchedulerStatus;
 
@@ -182,30 +182,6 @@ pub fn stop(config_dir: &Path) -> Result<bool> {
     terminate_process(content.pid);
     let _ = std::fs::remove_file(&path);
     Ok(true)
-}
-
-#[cfg(windows)]
-fn terminate_process(pid: u32) {
-    extern "system" {
-        fn OpenProcess(desired_access: u32, inherit_handle: i32, process_id: u32) -> isize;
-        fn TerminateProcess(handle: isize, exit_code: u32) -> i32;
-        fn CloseHandle(handle: isize) -> i32;
-    }
-    const PROCESS_TERMINATE: u32 = 0x0001;
-    unsafe {
-        let handle = OpenProcess(PROCESS_TERMINATE, 0, pid);
-        if handle != 0 {
-            TerminateProcess(handle, 1);
-            CloseHandle(handle);
-        }
-    }
-}
-
-#[cfg(not(windows))]
-fn terminate_process(pid: u32) {
-    let _ = std::process::Command::new("kill")
-        .arg(pid.to_string())
-        .status();
 }
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,10 @@
+use std::path::Path;
+
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
+use crate::error::Result;
 use crate::health::WorkspaceHealth;
 
 // ---------------------------------------------------------------------------
@@ -159,6 +162,35 @@ pub fn purge_expired(notifications: &mut Vec<Notification>, ttl_days: u32) {
 }
 
 // ---------------------------------------------------------------------------
+// Notification History Persistence (sidecar file)
+// ---------------------------------------------------------------------------
+
+const NOTIFICATIONS_FILE: &str = "notifications.json";
+
+/// Load notification history from the `notifications.json` sidecar in `dir`.
+/// Returns an empty vec if the file is missing or corrupt.
+pub fn load_history(dir: &Path) -> Vec<Notification> {
+    let path = dir.join(NOTIFICATIONS_FILE);
+    let bytes = match std::fs::read(&path) {
+        Ok(b) => b,
+        Err(_) => return Vec::new(),
+    };
+    serde_json::from_slice(&bytes).unwrap_or_default()
+}
+
+/// Persist notification history to `notifications.json` in `dir`.
+/// Uses atomic temp+rename for safe concurrent access.
+pub fn save_history(notifications: &[Notification], dir: &Path) -> Result<()> {
+    std::fs::create_dir_all(dir)?;
+    let path = dir.join(NOTIFICATIONS_FILE);
+    let json = serde_json::to_vec_pretty(notifications)?;
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, &json)?;
+    std::fs::rename(&tmp, &path)?;
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -283,6 +315,36 @@ mod tests {
         let mut notifications: Vec<Notification> = vec![];
         purge_expired(&mut notifications, 7);
         assert!(notifications.is_empty());
+    }
+
+    #[test]
+    fn save_and_load_history_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let notifications = vec![Notification {
+            id: Uuid::new_v4(),
+            timestamp: OffsetDateTime::now_utc(),
+            severity: Severity::Info,
+            title: "test".into(),
+            body: "body".into(),
+            read: false,
+        }];
+        save_history(&notifications, dir.path()).unwrap();
+        let loaded = load_history(dir.path());
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].title, "test");
+    }
+
+    #[test]
+    fn load_history_missing_returns_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(load_history(dir.path()).is_empty());
+    }
+
+    #[test]
+    fn load_history_corrupt_returns_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("notifications.json"), b"not json").unwrap();
+        assert!(load_history(dir.path()).is_empty());
     }
 
     #[test]

@@ -5,7 +5,7 @@ use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::git::read::RepositoryStatus;
+use crate::git::read::{self, RepositoryStatus};
 use crate::repository::{Repository, RepositoryState};
 
 // ---------------------------------------------------------------------------
@@ -67,224 +67,174 @@ impl Default for HealthThresholds {
 }
 
 // ---------------------------------------------------------------------------
-// HealthCheck Trait
+// Health Check Functions
 // ---------------------------------------------------------------------------
 
-pub trait HealthCheck {
-    fn id(&self) -> &str;
-    fn evaluate(
-        &self,
-        status: &RepositoryStatus,
-        thresholds: &HealthThresholds,
-        now: OffsetDateTime,
-    ) -> CheckResult;
-}
+fn check_stale(
+    status: &RepositoryStatus,
+    thresholds: &HealthThresholds,
+    now: OffsetDateTime,
+) -> CheckResult {
+    let head = match &status.head {
+        Some(h) => h,
+        None => {
+            return CheckResult {
+                check_id: "stale".into(),
+                severity: CheckSeverity::Healthy,
+                message: "No commits — stale check skipped".into(),
+            };
+        }
+    };
 
-// ---------------------------------------------------------------------------
-// StaleCheck
-// ---------------------------------------------------------------------------
-
-pub struct StaleCheck;
-
-impl HealthCheck for StaleCheck {
-    fn id(&self) -> &str {
-        "stale"
-    }
-
-    fn evaluate(
-        &self,
-        status: &RepositoryStatus,
-        thresholds: &HealthThresholds,
-        now: OffsetDateTime,
-    ) -> CheckResult {
-        let head = match &status.head {
-            Some(h) => h,
-            None => {
-                return CheckResult {
-                    check_id: self.id().into(),
-                    severity: CheckSeverity::Healthy,
-                    message: "No commits — stale check skipped".into(),
-                };
-            }
-        };
-
-        let commit_date = match OffsetDateTime::parse(&head.date, &Rfc3339) {
-            Ok(d) => d,
-            Err(_) => {
-                return CheckResult {
-                    check_id: self.id().into(),
-                    severity: CheckSeverity::Warning,
-                    message: "Could not parse HEAD commit date".into(),
-                };
-            }
-        };
-
-        let age_days = (now - commit_date).whole_days().unsigned_abs() as u32;
-
-        if age_days >= thresholds.stale_days_critical {
-            CheckResult {
-                check_id: self.id().into(),
-                severity: CheckSeverity::Critical,
-                message: format!(
-                    "HEAD is {age_days} days old (critical threshold: {} days)",
-                    thresholds.stale_days_critical
-                ),
-            }
-        } else if age_days >= thresholds.stale_days_warning {
-            CheckResult {
-                check_id: self.id().into(),
+    let commit_date = match OffsetDateTime::parse(&head.date, &Rfc3339) {
+        Ok(d) => d,
+        Err(_) => {
+            return CheckResult {
+                check_id: "stale".into(),
                 severity: CheckSeverity::Warning,
-                message: format!(
-                    "HEAD is {age_days} days old (warning threshold: {} days)",
-                    thresholds.stale_days_warning
-                ),
-            }
-        } else {
-            CheckResult {
-                check_id: self.id().into(),
-                severity: CheckSeverity::Healthy,
-                message: format!("HEAD is {age_days} days old"),
-            }
+                message: "Could not parse HEAD commit date".into(),
+            };
+        }
+    };
+
+    let age_days = (now - commit_date).whole_days().unsigned_abs() as u32;
+
+    if age_days >= thresholds.stale_days_critical {
+        CheckResult {
+            check_id: "stale".into(),
+            severity: CheckSeverity::Critical,
+            message: format!(
+                "HEAD is {age_days} days old (critical threshold: {} days)",
+                thresholds.stale_days_critical
+            ),
+        }
+    } else if age_days >= thresholds.stale_days_warning {
+        CheckResult {
+            check_id: "stale".into(),
+            severity: CheckSeverity::Warning,
+            message: format!(
+                "HEAD is {age_days} days old (warning threshold: {} days)",
+                thresholds.stale_days_warning
+            ),
+        }
+    } else {
+        CheckResult {
+            check_id: "stale".into(),
+            severity: CheckSeverity::Healthy,
+            message: format!("HEAD is {age_days} days old"),
         }
     }
 }
 
-// ---------------------------------------------------------------------------
-// DivergedCheck
-// ---------------------------------------------------------------------------
-
-pub struct DivergedCheck;
-
-impl HealthCheck for DivergedCheck {
-    fn id(&self) -> &str {
-        "diverged"
-    }
-
-    fn evaluate(
-        &self,
-        status: &RepositoryStatus,
-        thresholds: &HealthThresholds,
-        _now: OffsetDateTime,
-    ) -> CheckResult {
-        let upstream = match &status.upstream {
-            Some(u) => u,
-            None => {
-                return CheckResult {
-                    check_id: self.id().into(),
-                    severity: CheckSeverity::Healthy,
-                    message: "No upstream configured — diverged check skipped".into(),
-                };
-            }
-        };
-
-        let behind = upstream.behind;
-
-        if behind >= thresholds.diverged_critical {
-            CheckResult {
-                check_id: self.id().into(),
-                severity: CheckSeverity::Critical,
-                message: format!(
-                    "{behind} commits behind upstream (critical threshold: {})",
-                    thresholds.diverged_critical
-                ),
-            }
-        } else if behind >= thresholds.diverged_warning {
-            CheckResult {
-                check_id: self.id().into(),
-                severity: CheckSeverity::Warning,
-                message: format!(
-                    "{behind} commits behind upstream (warning threshold: {})",
-                    thresholds.diverged_warning
-                ),
-            }
-        } else {
-            CheckResult {
-                check_id: self.id().into(),
+fn check_diverged(status: &RepositoryStatus, thresholds: &HealthThresholds) -> CheckResult {
+    let upstream = match &status.upstream {
+        Some(u) => u,
+        None => {
+            return CheckResult {
+                check_id: "diverged".into(),
                 severity: CheckSeverity::Healthy,
-                message: format!("{behind} commits behind upstream"),
-            }
+                message: "No upstream configured — diverged check skipped".into(),
+            };
+        }
+    };
+
+    let behind = upstream.behind;
+
+    if behind >= thresholds.diverged_critical {
+        CheckResult {
+            check_id: "diverged".into(),
+            severity: CheckSeverity::Critical,
+            message: format!(
+                "{behind} commits behind upstream (critical threshold: {})",
+                thresholds.diverged_critical
+            ),
+        }
+    } else if behind >= thresholds.diverged_warning {
+        CheckResult {
+            check_id: "diverged".into(),
+            severity: CheckSeverity::Warning,
+            message: format!(
+                "{behind} commits behind upstream (warning threshold: {})",
+                thresholds.diverged_warning
+            ),
+        }
+    } else {
+        CheckResult {
+            check_id: "diverged".into(),
+            severity: CheckSeverity::Healthy,
+            message: format!("{behind} commits behind upstream"),
         }
     }
 }
 
-// ---------------------------------------------------------------------------
-// DirtyCheck
-// ---------------------------------------------------------------------------
-
-pub struct DirtyCheck;
-
-impl HealthCheck for DirtyCheck {
-    fn id(&self) -> &str {
-        "dirty"
-    }
-
-    fn evaluate(
-        &self,
-        status: &RepositoryStatus,
-        _thresholds: &HealthThresholds,
-        _now: OffsetDateTime,
-    ) -> CheckResult {
-        if status.dirty {
-            CheckResult {
-                check_id: self.id().into(),
-                severity: CheckSeverity::Warning,
-                message: "Working tree has uncommitted changes".into(),
-            }
-        } else {
-            CheckResult {
-                check_id: self.id().into(),
-                severity: CheckSeverity::Healthy,
-                message: "Working tree is clean".into(),
-            }
+fn check_dirty(status: &RepositoryStatus) -> CheckResult {
+    if status.dirty {
+        CheckResult {
+            check_id: "dirty".into(),
+            severity: CheckSeverity::Warning,
+            message: "Working tree has uncommitted changes".into(),
+        }
+    } else {
+        CheckResult {
+            check_id: "dirty".into(),
+            severity: CheckSeverity::Healthy,
+            message: "Working tree is clean".into(),
         }
     }
 }
 
-// ---------------------------------------------------------------------------
-// DetachedCheck
-// ---------------------------------------------------------------------------
-
-pub struct DetachedCheck;
-
-impl HealthCheck for DetachedCheck {
-    fn id(&self) -> &str {
-        "detached"
-    }
-
-    fn evaluate(
-        &self,
-        status: &RepositoryStatus,
-        _thresholds: &HealthThresholds,
-        _now: OffsetDateTime,
-    ) -> CheckResult {
-        if status.detached {
-            CheckResult {
-                check_id: self.id().into(),
-                severity: CheckSeverity::Critical,
-                message: "HEAD is detached".into(),
-            }
-        } else {
-            CheckResult {
-                check_id: self.id().into(),
-                severity: CheckSeverity::Healthy,
-                message: "HEAD is on a branch".into(),
-            }
+fn check_detached(status: &RepositoryStatus) -> CheckResult {
+    if status.detached {
+        CheckResult {
+            check_id: "detached".into(),
+            severity: CheckSeverity::Critical,
+            message: "HEAD is detached".into(),
+        }
+    } else {
+        CheckResult {
+            check_id: "detached".into(),
+            severity: CheckSeverity::Healthy,
+            message: "HEAD is on a branch".into(),
         }
     }
 }
 
-// ---------------------------------------------------------------------------
-// Evaluation Functions
-// ---------------------------------------------------------------------------
-
-/// All built-in health checks.
-pub fn default_checks() -> Vec<Box<dyn HealthCheck>> {
+/// Run all built-in health checks against a single repository status.
+pub fn evaluate_checks(
+    status: &RepositoryStatus,
+    thresholds: &HealthThresholds,
+    now: OffsetDateTime,
+) -> Vec<CheckResult> {
     vec![
-        Box::new(StaleCheck),
-        Box::new(DivergedCheck),
-        Box::new(DirtyCheck),
-        Box::new(DetachedCheck),
+        check_stale(status, thresholds, now),
+        check_diverged(status, thresholds),
+        check_dirty(status),
+        check_detached(status),
     ]
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// Collect `RepositoryStatus` for each repository, silently skipping
+/// repos whose status cannot be read.
+pub fn collect_statuses(repos: &[&Repository]) -> HashMap<Uuid, RepositoryStatus> {
+    let mut statuses = HashMap::new();
+    for repo in repos {
+        if let Ok(s) = read::read_status(&repo.path) {
+            statuses.insert(repo.id, s);
+        }
+    }
+    statuses
+}
+
+/// Filter a repository list to only Active repos.
+pub fn active_repos(repos: &[Repository]) -> Vec<&Repository> {
+    repos
+        .iter()
+        .filter(|r| r.state == RepositoryState::Active)
+        .collect()
 }
 
 fn worst(checks: &[CheckResult]) -> CheckSeverity {
@@ -297,19 +247,18 @@ fn worst(checks: &[CheckResult]) -> CheckSeverity {
     }
 }
 
-/// Evaluate a single Repository against the supplied checks.
-/// Returns `None` if the Repository is Missing (HEALTH-06).
+// ---------------------------------------------------------------------------
+// Evaluation Functions
+// ---------------------------------------------------------------------------
+
+/// Evaluate a single Repository against the built-in checks.
 pub fn evaluate_repository(
     repo: &Repository,
     status: &RepositoryStatus,
-    checks: &[Box<dyn HealthCheck>],
     thresholds: &HealthThresholds,
     now: OffsetDateTime,
 ) -> RepositoryHealth {
-    let results: Vec<CheckResult> = checks
-        .iter()
-        .map(|c| c.evaluate(status, thresholds, now))
-        .collect();
+    let results = evaluate_checks(status, thresholds, now);
     let worst_severity = worst(&results);
 
     RepositoryHealth {
@@ -320,22 +269,16 @@ pub fn evaluate_repository(
     }
 }
 
-/// Evaluate the entire workspace. Missing repos are excluded (HEALTH-06).
-/// Score = (repos not critical / total active repos) * 100.
-/// Zero active repos → score is -1.0 (displayed as N/A).
+/// Evaluate a set of repositories. Repos whose status is absent from
+/// `statuses` are silently skipped.
+/// Score = (repos not critical / total evaluated) * 100.
+/// Empty input → score is -1.0 (displayed as N/A).
 pub fn evaluate_workspace(
-    repos: &[Repository],
+    repos: &[&Repository],
     statuses: &HashMap<Uuid, RepositoryStatus>,
-    checks: &[Box<dyn HealthCheck>],
     thresholds: &HealthThresholds,
 ) -> WorkspaceHealth {
-    let now = OffsetDateTime::now_utc();
-    let active_repos: Vec<&Repository> = repos
-        .iter()
-        .filter(|r| r.state == RepositoryState::Active)
-        .collect();
-
-    if active_repos.is_empty() {
+    if repos.is_empty() {
         return WorkspaceHealth {
             score: -1.0,
             total_repos: 0,
@@ -346,10 +289,11 @@ pub fn evaluate_workspace(
         };
     }
 
+    let now = OffsetDateTime::now_utc();
     let mut repo_healths = Vec::new();
-    for repo in &active_repos {
+    for repo in repos {
         if let Some(status) = statuses.get(&repo.id) {
-            repo_healths.push(evaluate_repository(repo, status, checks, thresholds, now));
+            repo_healths.push(evaluate_repository(repo, status, thresholds, now));
         }
     }
 
@@ -474,7 +418,7 @@ mod tests {
     #[test]
     fn stale_check_healthy_when_recent() {
         let thresholds = HealthThresholds::default();
-        let result = StaleCheck.evaluate(&fresh_status(), &thresholds, now());
+        let result = check_stale(&fresh_status(), &thresholds, now());
         assert_eq!(result.severity, CheckSeverity::Healthy);
         assert_eq!(result.check_id, "stale");
     }
@@ -482,87 +426,82 @@ mod tests {
     #[test]
     fn stale_check_warning_at_threshold() {
         let thresholds = HealthThresholds::default();
-        let result = StaleCheck.evaluate(&stale_status(8), &thresholds, now());
+        let result = check_stale(&stale_status(8), &thresholds, now());
         assert_eq!(result.severity, CheckSeverity::Warning);
     }
 
     #[test]
     fn stale_check_critical_at_double_threshold() {
         let thresholds = HealthThresholds::default();
-        let result = StaleCheck.evaluate(&stale_status(15), &thresholds, now());
+        let result = check_stale(&stale_status(15), &thresholds, now());
         assert_eq!(result.severity, CheckSeverity::Critical);
     }
 
     #[test]
     fn stale_check_skips_empty_repo() {
         let thresholds = HealthThresholds::default();
-        let result = StaleCheck.evaluate(&no_commits_status(), &thresholds, now());
+        let result = check_stale(&no_commits_status(), &thresholds, now());
         assert_eq!(result.severity, CheckSeverity::Healthy);
     }
 
     #[test]
     fn diverged_check_healthy_when_in_sync() {
         let thresholds = HealthThresholds::default();
-        let result = DivergedCheck.evaluate(&fresh_status(), &thresholds, now());
+        let result = check_diverged(&fresh_status(), &thresholds);
         assert_eq!(result.severity, CheckSeverity::Healthy);
     }
 
     #[test]
     fn diverged_check_warning() {
         let thresholds = HealthThresholds::default();
-        let result = DivergedCheck.evaluate(&diverged_status(6), &thresholds, now());
+        let result = check_diverged(&diverged_status(6), &thresholds);
         assert_eq!(result.severity, CheckSeverity::Warning);
     }
 
     #[test]
     fn diverged_check_critical() {
         let thresholds = HealthThresholds::default();
-        let result = DivergedCheck.evaluate(&diverged_status(25), &thresholds, now());
+        let result = check_diverged(&diverged_status(25), &thresholds);
         assert_eq!(result.severity, CheckSeverity::Critical);
     }
 
     #[test]
     fn diverged_check_skips_no_upstream() {
         let thresholds = HealthThresholds::default();
-        let result = DivergedCheck.evaluate(&no_upstream_status(), &thresholds, now());
+        let result = check_diverged(&no_upstream_status(), &thresholds);
         assert_eq!(result.severity, CheckSeverity::Healthy);
         assert!(result.message.contains("skipped"));
     }
 
     #[test]
     fn dirty_check_warning() {
-        let thresholds = HealthThresholds::default();
-        let result = DirtyCheck.evaluate(&dirty_status(), &thresholds, now());
+        let result = check_dirty(&dirty_status());
         assert_eq!(result.severity, CheckSeverity::Warning);
     }
 
     #[test]
     fn dirty_check_healthy() {
-        let thresholds = HealthThresholds::default();
-        let result = DirtyCheck.evaluate(&fresh_status(), &thresholds, now());
+        let result = check_dirty(&fresh_status());
         assert_eq!(result.severity, CheckSeverity::Healthy);
     }
 
     #[test]
     fn detached_check_critical() {
-        let thresholds = HealthThresholds::default();
-        let result = DetachedCheck.evaluate(&detached_status(), &thresholds, now());
+        let result = check_detached(&detached_status());
         assert_eq!(result.severity, CheckSeverity::Critical);
     }
 
     #[test]
     fn detached_check_healthy() {
-        let thresholds = HealthThresholds::default();
-        let result = DetachedCheck.evaluate(&fresh_status(), &thresholds, now());
+        let result = check_detached(&fresh_status());
         assert_eq!(result.severity, CheckSeverity::Healthy);
     }
 
     #[test]
     fn evaluate_repository_computes_worst_severity() {
         let repo = make_repo(RepositoryState::Active);
-        let checks = default_checks();
         let thresholds = HealthThresholds::default();
-        let health = evaluate_repository(&repo, &detached_status(), &checks, &thresholds, now());
+        let health = evaluate_repository(&repo, &detached_status(), &thresholds, now());
         assert_eq!(health.worst_severity, CheckSeverity::Critical);
     }
 
@@ -577,18 +516,17 @@ mod tests {
             })
             .collect();
 
-        let checks = default_checks();
         let thresholds = HealthThresholds::default();
+        let repo_refs: Vec<&Repository> = repos.iter().collect();
 
         let mut statuses: HashMap<Uuid, RepositoryStatus> =
             repos.iter().map(|r| (r.id, fresh_status())).collect();
 
-        // Make 3 repos critical (detached)
         for i in 0..3 {
             statuses.insert(repos[i].id, detached_status());
         }
 
-        let health = evaluate_workspace(&repos, &statuses, &checks, &thresholds);
+        let health = evaluate_workspace(&repo_refs, &statuses, &thresholds);
         assert_eq!(health.total_repos, 10);
         assert_eq!(health.critical_count, 3);
         assert!((health.score - 70.0).abs() < 0.01);
@@ -605,12 +543,12 @@ mod tests {
             })
             .collect();
 
-        let checks = default_checks();
         let thresholds = HealthThresholds::default();
+        let repo_refs: Vec<&Repository> = repos.iter().collect();
         let statuses: HashMap<Uuid, RepositoryStatus> =
             repos.iter().map(|r| (r.id, fresh_status())).collect();
 
-        let health = evaluate_workspace(&repos, &statuses, &checks, &thresholds);
+        let health = evaluate_workspace(&repo_refs, &statuses, &thresholds);
         assert!((health.score - 100.0).abs() < 0.01);
         assert_eq!(health.healthy_count, 5);
     }
@@ -622,23 +560,25 @@ mod tests {
         missing.id = Uuid::new_v4();
         repos.push(missing);
 
-        let checks = default_checks();
         let thresholds = HealthThresholds::default();
+        let repo_refs: Vec<&Repository> = repos
+            .iter()
+            .filter(|r| r.state == RepositoryState::Active)
+            .collect();
         let statuses: HashMap<Uuid, RepositoryStatus> =
             [(repos[0].id, fresh_status())].into_iter().collect();
 
-        let health = evaluate_workspace(&repos, &statuses, &checks, &thresholds);
+        let health = evaluate_workspace(&repo_refs, &statuses, &thresholds);
         assert_eq!(health.total_repos, 1);
     }
 
     #[test]
     fn evaluate_workspace_zero_repos_returns_na() {
-        let repos: Vec<Repository> = vec![];
-        let checks = default_checks();
+        let repo_refs: Vec<&Repository> = vec![];
         let thresholds = HealthThresholds::default();
         let statuses: HashMap<Uuid, RepositoryStatus> = HashMap::new();
 
-        let health = evaluate_workspace(&repos, &statuses, &checks, &thresholds);
+        let health = evaluate_workspace(&repo_refs, &statuses, &thresholds);
         assert!(health.score < 0.0);
         assert_eq!(health.total_repos, 0);
     }

@@ -34,6 +34,31 @@ pub fn is_process_alive(pid: u32) -> bool {
         .unwrap_or(false)
 }
 
+/// Terminate a process by PID.
+#[cfg(windows)]
+pub fn terminate_process(pid: u32) {
+    extern "system" {
+        fn OpenProcess(desired_access: u32, inherit_handle: i32, process_id: u32) -> isize;
+        fn TerminateProcess(handle: isize, exit_code: u32) -> i32;
+        fn CloseHandle(handle: isize) -> i32;
+    }
+    const PROCESS_TERMINATE: u32 = 0x0001;
+    unsafe {
+        let handle = OpenProcess(PROCESS_TERMINATE, 0, pid);
+        if handle != 0 {
+            TerminateProcess(handle, 1);
+            CloseHandle(handle);
+        }
+    }
+}
+
+#[cfg(not(windows))]
+pub fn terminate_process(pid: u32) {
+    let _ = std::process::Command::new("kill")
+        .arg(pid.to_string())
+        .status();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

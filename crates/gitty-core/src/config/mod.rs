@@ -5,7 +5,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{CoreError, Result};
-use crate::notification::{Notification, NotificationConfig};
+use crate::notification::NotificationConfig;
 use crate::repository::Workspace;
 use crate::scheduler::SchedulerConfig;
 
@@ -14,6 +14,8 @@ use crate::scheduler::SchedulerConfig;
 pub const CURRENT_SCHEMA_VERSION: u32 = 1;
 
 /// The persisted Gitty configuration (a single JSON file, ADR-0004).
+/// Notification history is stored in a separate `notifications.json` sidecar
+/// file to keep config reads/writes lean.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub version: u32,
@@ -23,8 +25,6 @@ pub struct Config {
     pub scheduler: SchedulerConfig,
     #[serde(default)]
     pub notifications: NotificationConfig,
-    #[serde(default)]
-    pub notification_history: Vec<Notification>,
 }
 
 impl Default for Config {
@@ -34,7 +34,6 @@ impl Default for Config {
             workspace: Workspace::default(),
             scheduler: SchedulerConfig::default(),
             notifications: NotificationConfig::default(),
-            notification_history: Vec::new(),
         }
     }
 }

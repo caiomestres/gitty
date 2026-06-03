@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use anyhow::{Context, Result};
 use gitty_core::config::Config;
 use gitty_core::git::read;
@@ -18,7 +16,6 @@ pub fn cmd_health(target: Option<&str>) -> Result<()> {
 
     let config_dir = gitty_core::config::paths::config_dir().context("resolving config dir")?;
     let thresholds = &config.workspace.health_thresholds;
-    let checks = health::default_checks();
 
     if let Some(target) = target {
         let repo = match_repo(repos, target).map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -29,14 +26,14 @@ pub fn cmd_health(target: Option<&str>) -> Result<()> {
         let status = read::read_status(&repo.path)
             .with_context(|| format!("reading status of {}", repo.path.display()))?;
         let now = OffsetDateTime::now_utc();
-        let health = health::evaluate_repository(repo, &status, &checks, thresholds, now);
+        let rh = health::evaluate_repository(repo, &status, thresholds, now);
         let name = repo.display_name();
         println!("Repository: {name}");
         println!(
             "  Worst severity: {}",
-            severity_label(health.worst_severity)
+            severity_label(rh.worst_severity)
         );
-        for check in &health.checks {
+        for check in &rh.checks {
             println!(
                 "  [{}] {} — {}",
                 severity_dot(check.severity),
@@ -54,21 +51,10 @@ pub fn cmd_health(target: Option<&str>) -> Result<()> {
         return Ok(());
     }
 
-    let active_repos: Vec<_> = repos
-        .iter()
-        .filter(|r| r.state == RepositoryState::Active)
-        .collect();
-    let mut statuses = HashMap::new();
-    for repo in &active_repos {
-        match read::read_status(&repo.path) {
-            Ok(s) => {
-                statuses.insert(repo.id, s);
-            }
-            Err(e) => eprintln!("warning: could not read {}: {e}", repo.path.display()),
-        }
-    }
+    let active = health::active_repos(repos);
+    let statuses = health::collect_statuses(&active);
 
-    let workspace_health = health::evaluate_workspace(repos, &statuses, &checks, thresholds);
+    let workspace_health = health::evaluate_workspace(&active, &statuses, thresholds);
     let _ = gitty_core::health_cache::save(&workspace_health, &config_dir);
     print_workspace_health(&workspace_health);
     Ok(())

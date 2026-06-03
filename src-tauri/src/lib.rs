@@ -24,6 +24,9 @@ pub fn run() {
 
             let app_handle = app.handle().clone();
             std::thread::spawn(move || {
+                const TICK_INTERVAL_SECS: u64 = 30;
+                const HEALTH_POLL_TICKS: u32 = 10; // ~5 minutes at 30s ticks
+
                 let mut ticks_since_health_poll: u32 = 0;
                 loop {
                     let app_state = app_handle.state::<AppState>();
@@ -35,17 +38,14 @@ pub fn run() {
                         });
                     }
 
-                    // Health-only poll every ~5 minutes (10 ticks × 30s)
                     ticks_since_health_poll += 1;
-                    if ticks_since_health_poll >= 10 {
+                    if ticks_since_health_poll >= HEALTH_POLL_TICKS {
                         ticks_since_health_poll = 0;
-                        let _ = app_state.with_config_write(|config| {
-                            gitty_core::scheduler::runner::evaluate_health(config, &config_dir);
-                            Ok(())
-                        });
+                        let config = app_state.config();
+                        gitty_core::scheduler::runner::evaluate_health(&config, &config_dir);
                     }
 
-                    std::thread::sleep(std::time::Duration::from_secs(30));
+                    std::thread::sleep(std::time::Duration::from_secs(TICK_INTERVAL_SECS));
                 }
             });
 

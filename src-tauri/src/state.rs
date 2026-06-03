@@ -24,6 +24,16 @@ impl AppState {
         self.config.lock().expect("config mutex poisoned")
     }
 
+    pub fn config_dir(&self) -> Result<PathBuf, AppError> {
+        self.config_path
+            .parent()
+            .map(|p| p.to_path_buf())
+            .ok_or_else(|| AppError {
+                code: "config_error".into(),
+                message: "config path has no parent directory".into(),
+            })
+    }
+
     pub fn reload(&self) -> Result<(), AppError> {
         let new_config = Config::load_from(&self.config_path)?;
         *self.config.lock().expect("config mutex poisoned") = new_config;

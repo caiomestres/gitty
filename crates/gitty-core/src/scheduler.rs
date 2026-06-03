@@ -24,40 +24,59 @@ pub struct SchedulerConfig {
     pub next_run: Option<OffsetDateTime>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum DayOfWeek {
-    Mon,
-    Tue,
-    Wed,
-    Thu,
-    Fri,
-    Sat,
-    Sun,
-}
+/// Thin newtype over `time::Weekday` that serializes as lowercase
+/// abbreviations (`"mon"`, `"tue"`, …) for config-file ergonomics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DayOfWeek(pub time::Weekday);
 
 impl DayOfWeek {
-    pub fn from_weekday(wd: time::Weekday) -> Self {
-        match wd {
-            time::Weekday::Monday => Self::Mon,
-            time::Weekday::Tuesday => Self::Tue,
-            time::Weekday::Wednesday => Self::Wed,
-            time::Weekday::Thursday => Self::Thu,
-            time::Weekday::Friday => Self::Fri,
-            time::Weekday::Saturday => Self::Sat,
-            time::Weekday::Sunday => Self::Sun,
-        }
-    }
+    pub const MON: Self = Self(time::Weekday::Monday);
+    pub const TUE: Self = Self(time::Weekday::Tuesday);
+    pub const WED: Self = Self(time::Weekday::Wednesday);
+    pub const THU: Self = Self(time::Weekday::Thursday);
+    pub const FRI: Self = Self(time::Weekday::Friday);
+    pub const SAT: Self = Self(time::Weekday::Saturday);
+    pub const SUN: Self = Self(time::Weekday::Sunday);
+}
 
-    pub fn to_weekday(self) -> time::Weekday {
-        match self {
-            Self::Mon => time::Weekday::Monday,
-            Self::Tue => time::Weekday::Tuesday,
-            Self::Wed => time::Weekday::Wednesday,
-            Self::Thu => time::Weekday::Thursday,
-            Self::Fri => time::Weekday::Friday,
-            Self::Sat => time::Weekday::Saturday,
-            Self::Sun => time::Weekday::Sunday,
+impl From<time::Weekday> for DayOfWeek {
+    fn from(wd: time::Weekday) -> Self {
+        Self(wd)
+    }
+}
+
+impl From<DayOfWeek> for time::Weekday {
+    fn from(d: DayOfWeek) -> Self {
+        d.0
+    }
+}
+
+impl Serialize for DayOfWeek {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(match self.0 {
+            time::Weekday::Monday => "mon",
+            time::Weekday::Tuesday => "tue",
+            time::Weekday::Wednesday => "wed",
+            time::Weekday::Thursday => "thu",
+            time::Weekday::Friday => "fri",
+            time::Weekday::Saturday => "sat",
+            time::Weekday::Sunday => "sun",
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for DayOfWeek {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            "mon" => Ok(Self(time::Weekday::Monday)),
+            "tue" => Ok(Self(time::Weekday::Tuesday)),
+            "wed" => Ok(Self(time::Weekday::Wednesday)),
+            "thu" => Ok(Self(time::Weekday::Thursday)),
+            "fri" => Ok(Self(time::Weekday::Friday)),
+            "sat" => Ok(Self(time::Weekday::Saturday)),
+            "sun" => Ok(Self(time::Weekday::Sunday)),
+            other => Err(serde::de::Error::custom(format!("unknown day: {other}"))),
         }
     }
 }
@@ -167,7 +186,7 @@ pub fn should_run(
             window_end,
             days,
         } => {
-            let today = DayOfWeek::from_weekday(now.weekday());
+            let today = DayOfWeek::from(now.weekday());
             if !days.contains(&today) {
                 return false;
             }
@@ -207,11 +226,16 @@ pub fn compute_next_run(config: &SchedulerConfig, from: OffsetDateTime) -> Optio
             window_end,
             days,
         } => {
+            // TODO: replace minute-by-minute scan with O(1) jump: advance to
+            // the next valid day, then clamp to window_start. Current worst
+            // case is 10,080 iterations (7 days × 1440 min), acceptable at
+            // a 30-second poll cadence but will bite if scheduling granularity
+            // increases.
             let mut candidate = from + time::Duration::minutes(*interval_minutes as i64);
             let cap = from + time::Duration::days(7);
 
             while candidate <= cap {
-                let day = DayOfWeek::from_weekday(candidate.weekday());
+                let day = DayOfWeek::from(candidate.weekday());
                 let mins = candidate.hour() as u16 * 60 + candidate.minute() as u16;
                 if days.contains(&day) && in_time_window(mins, *window_start, *window_end) {
                     return Some(candidate);
@@ -298,7 +322,7 @@ mod tests {
         let n = now();
         let start = TimeOfDay::from_hm(n.hour(), 0);
         let end = TimeOfDay::from_hm(n.hour(), 59);
-        let today = DayOfWeek::from_weekday(n.weekday());
+        let today = DayOfWeek::from(n.weekday());
 
         let config = SchedulerConfig {
             enabled: true,
@@ -380,13 +404,13 @@ mod tests {
                 window_start: TimeOfDay::from_hm(9, 0),
                 window_end: TimeOfDay::from_hm(17, 0),
                 days: vec![
-                    DayOfWeek::Mon,
-                    DayOfWeek::Tue,
-                    DayOfWeek::Wed,
-                    DayOfWeek::Thu,
-                    DayOfWeek::Fri,
-                    DayOfWeek::Sat,
-                    DayOfWeek::Sun,
+                    DayOfWeek::MON,
+                    DayOfWeek::TUE,
+                    DayOfWeek::WED,
+                    DayOfWeek::THU,
+                    DayOfWeek::FRI,
+                    DayOfWeek::SAT,
+                    DayOfWeek::SUN,
                 ],
             },
             power: PowerConfig::default(),

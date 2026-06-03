@@ -30,14 +30,17 @@ pub fn cmd_notification(action: NotificationAction) -> Result<()> {
     match action {
         NotificationAction::Show => {
             let config = Config::load().context("loading config")?;
+            let config_dir =
+                gitty_core::config::paths::config_dir().context("resolving config dir")?;
             let mode = trigger_display(&config.notifications.trigger);
             println!("Notification trigger: {mode}");
             if let Some(interval) = config.notifications.polling_interval_minutes {
                 println!("Polling interval:     {interval} minutes");
             }
+            let history = gitty_core::notification::load_history(&config_dir);
             println!(
                 "History:              {} notifications",
-                config.notification_history.len()
+                history.len()
             );
         }
         NotificationAction::Set { mode } => {

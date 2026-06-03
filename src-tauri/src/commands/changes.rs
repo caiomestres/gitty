@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
-use gitty_core::changes::{self, Grouping, TimeWindow};
-use gitty_core::repository::RepositoryState;
+use gitty_core::changes::{self, ChangeEntry, Grouping, TimeWindow};
+use gitty_core::health;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -17,6 +17,20 @@ pub struct ChangeEntryDto {
     pub branch: String,
     pub repo_id: String,
     pub repo_name: String,
+}
+
+impl From<&ChangeEntry> for ChangeEntryDto {
+    fn from(e: &ChangeEntry) -> Self {
+        Self {
+            commit_hash: e.commit_hash.clone(),
+            author: e.author.clone(),
+            date: e.date.clone(),
+            subject: e.subject.clone(),
+            branch: e.branch.clone(),
+            repo_id: e.repo_id.to_string(),
+            repo_name: e.repo_name.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,12 +69,7 @@ pub fn get_changes(
     all_branches_repos: Vec<String>,
 ) -> Result<GroupedChangesDto, AppError> {
     let config = state.config();
-    let repos: Vec<_> = config
-        .workspace
-        .repositories
-        .iter()
-        .filter(|r| r.state == RepositoryState::Active)
-        .collect();
+    let repos = health::active_repos(&config.workspace.repositories);
 
     let all_branches: HashSet<uuid::Uuid> = all_branches_repos
         .iter()
@@ -78,18 +87,7 @@ pub fn get_changes(
         .into_iter()
         .map(|(key, refs)| ChangeGroupDto {
             key,
-            entries: refs
-                .into_iter()
-                .map(|e| ChangeEntryDto {
-                    commit_hash: e.commit_hash.clone(),
-                    author: e.author.clone(),
-                    date: e.date.clone(),
-                    subject: e.subject.clone(),
-                    branch: e.branch.clone(),
-                    repo_id: e.repo_id.to_string(),
-                    repo_name: e.repo_name.clone(),
-                })
-                .collect(),
+            entries: refs.into_iter().map(ChangeEntryDto::from).collect(),
         })
         .collect();
 

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
@@ -7,14 +6,13 @@ use time::OffsetDateTime;
 
 use crate::config::Config;
 use crate::execution::execute_macro;
-use crate::git::read;
 use crate::git::write::GitBinary;
 use crate::health;
 use crate::health_cache;
+use crate::job::JobStatus;
 use crate::macro_def::{GitOp, MacroDef, Step, StepKind};
-use crate::notification::generate_health_notification;
+use crate::notification::{self, generate_health_notification};
 use crate::power;
-use crate::repository::RepositoryState;
 use crate::scheduler;
 
 fn default_fetch_macro() -> MacroDef {
@@ -48,20 +46,28 @@ pub fn tick_with_config(config: &mut Config, config_dir: &std::path::Path) -> bo
         .and_then(|id| config.workspace.find_macro_by_id(id).cloned())
         .unwrap_or_else(default_fetch_macro);
 
-    let active_repos: Vec<_> = config
-        .workspace
-        .repositories
-        .iter()
-        .filter(|r| r.state == RepositoryState::Active)
-        .collect();
+    let active_repos = health::active_repos(&config.workspace.repositories);
 
-    if let Ok(git) = GitBinary::resolve() {
-        let _ = execute_macro(&macro_def, &active_repos, &git);
+    match GitBinary::resolve() {
+        Ok(git) => {
+            let jobs = execute_macro(&macro_def, &active_repos, &git);
+            for job in &jobs {
+                if let JobStatus::Failed { error } = &job.status {
+                    eprintln!(
+                        "scheduler: macro '{}' failed on repo {}: {error}",
+                        macro_def.name, job.repo_id
+                    );
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("scheduler: failed to resolve git binary: {e}");
+        }
     }
 
     scheduler::record_run(&mut config.scheduler, now);
 
-    evaluate_health(config, config_dir);
+    evaluate_health_with_repos(config, config_dir, &active_repos);
     true
 }
 
@@ -82,30 +88,21 @@ pub fn tick(config_dir: &std::path::Path) -> bool {
 
 /// Re-evaluate health and generate notifications.
 /// Operates on the provided config so callers with shared state can avoid races.
-pub fn evaluate_health(config: &mut Config, config_dir: &std::path::Path) {
-    let active_repos: Vec<_> = config
-        .workspace
-        .repositories
-        .iter()
-        .filter(|r| r.state == RepositoryState::Active)
-        .collect();
+pub fn evaluate_health(config: &Config, config_dir: &std::path::Path) {
+    let active_repos = health::active_repos(&config.workspace.repositories);
+    evaluate_health_with_repos(config, config_dir, &active_repos);
+}
 
-    let checks = health::default_checks();
+fn evaluate_health_with_repos(
+    config: &Config,
+    config_dir: &std::path::Path,
+    active_repos: &[&crate::repository::Repository],
+) {
     let thresholds = config.workspace.health_thresholds.clone();
-    let mut statuses = HashMap::new();
-    for repo in &active_repos {
-        if let Ok(s) = read::read_status(&repo.path) {
-            statuses.insert(repo.id, s);
-        }
-    }
+    let statuses = health::collect_statuses(active_repos);
 
     let prev_health = health_cache::load(config_dir).map(|c| c.workspace_health);
-    let current_health = health::evaluate_workspace(
-        &config.workspace.repositories,
-        &statuses,
-        &checks,
-        &thresholds,
-    );
+    let current_health = health::evaluate_workspace(active_repos, &statuses, &thresholds);
 
     let _ = health_cache::save(&current_health, config_dir);
 
@@ -114,19 +111,20 @@ pub fn evaluate_health(config: &mut Config, config_dir: &std::path::Path) {
         &current_health,
         &config.notifications.trigger,
     ) {
-        config.notification_history.push(notif);
+        let mut history = notification::load_history(config_dir);
+        history.push(notif);
+        let _ = notification::save_history(&history, config_dir);
     }
 }
 
 /// Re-evaluate health without running any macro (standalone, loads from disk).
 pub fn health_poll(config_dir: &std::path::Path) {
-    let mut config = match Config::load() {
+    let config = match Config::load() {
         Ok(c) => c,
         Err(_) => return,
     };
 
-    evaluate_health(&mut config, config_dir);
-    let _ = config.save();
+    evaluate_health(&config, config_dir);
 }
 
 /// Run the scheduler in a blocking loop. Checks every `poll_seconds`.

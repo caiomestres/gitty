@@ -1,6 +1,3 @@
-use std::collections::HashMap;
-
-use gitty_core::git::read;
 use gitty_core::health::{self, CheckSeverity};
 use gitty_core::health_cache;
 use gitty_core::repository::RepositoryState;
@@ -37,6 +34,27 @@ pub struct CheckResultDto {
     pub message: String,
 }
 
+impl From<&gitty_core::CheckResult> for CheckResultDto {
+    fn from(c: &gitty_core::CheckResult) -> Self {
+        Self {
+            check_id: c.check_id.clone(),
+            severity: c.severity,
+            message: c.message.clone(),
+        }
+    }
+}
+
+impl From<&gitty_core::RepositoryHealth> for RepositoryHealthDto {
+    fn from(rh: &gitty_core::RepositoryHealth) -> Self {
+        Self {
+            repo_id: rh.repo_id.to_string(),
+            repo_name: rh.repo_name.clone(),
+            checks: rh.checks.iter().map(CheckResultDto::from).collect(),
+            worst_severity: rh.worst_severity,
+        }
+    }
+}
+
 fn to_workspace_dto(
     wh: &gitty_core::WorkspaceHealth,
     last_evaluated: Option<String>,
@@ -47,24 +65,7 @@ fn to_workspace_dto(
         critical_count: wh.critical_count,
         warning_count: wh.warning_count,
         healthy_count: wh.healthy_count,
-        repositories: wh
-            .repositories
-            .iter()
-            .map(|rh| RepositoryHealthDto {
-                repo_id: rh.repo_id.to_string(),
-                repo_name: rh.repo_name.clone(),
-                checks: rh
-                    .checks
-                    .iter()
-                    .map(|c| CheckResultDto {
-                        check_id: c.check_id.clone(),
-                        severity: c.severity,
-                        message: c.message.clone(),
-                    })
-                    .collect(),
-                worst_severity: rh.worst_severity,
-            })
-            .collect(),
+        repositories: wh.repositories.iter().map(RepositoryHealthDto::from).collect(),
         last_evaluated,
     }
 }
@@ -73,21 +74,11 @@ fn evaluate_fresh(state: &AppState) -> Result<WorkspaceHealthDto, AppError> {
     let config = state.config();
     let repos = &config.workspace.repositories;
     let thresholds = &config.workspace.health_thresholds;
-    let checks = health::default_checks();
 
-    let active_repos: Vec<_> = repos
-        .iter()
-        .filter(|r| r.state == RepositoryState::Active)
-        .collect();
+    let active = health::active_repos(repos);
+    let statuses = health::collect_statuses(&active);
 
-    let mut statuses = HashMap::new();
-    for repo in &active_repos {
-        if let Ok(s) = read::read_status(&repo.path) {
-            statuses.insert(repo.id, s);
-        }
-    }
-
-    let workspace_health = health::evaluate_workspace(repos, &statuses, &checks, thresholds);
+    let workspace_health = health::evaluate_workspace(&active, &statuses, thresholds);
 
     if let Ok(dir) = gitty_core::config::paths::config_dir() {
         let _ = health_cache::save(&workspace_health, &dir);
@@ -130,26 +121,12 @@ pub fn get_repository_health(
         });
     }
 
-    let status = read::read_status(&repo.path)?;
+    let status = gitty_core::git::read::read_status(&repo.path)?;
     let thresholds = &config.workspace.health_thresholds;
-    let checks = health::default_checks();
     let now = OffsetDateTime::now_utc();
-    let rh = health::evaluate_repository(repo, &status, &checks, thresholds, now);
+    let rh = health::evaluate_repository(repo, &status, thresholds, now);
 
-    Ok(RepositoryHealthDto {
-        repo_id: rh.repo_id.to_string(),
-        repo_name: rh.repo_name,
-        checks: rh
-            .checks
-            .iter()
-            .map(|c| CheckResultDto {
-                check_id: c.check_id.clone(),
-                severity: c.severity,
-                message: c.message.clone(),
-            })
-            .collect(),
-        worst_severity: rh.worst_severity,
-    })
+    Ok(RepositoryHealthDto::from(&rh))
 }
 
 #[tauri::command]
