@@ -29,6 +29,16 @@ impl Workspace {
         &self.groups
     }
 
+    /// Find a Group by UUID string or by name. Returns `None` if no match.
+    pub fn find_group_by_name_or_id(&self, name_or_id: &str) -> Option<&Group> {
+        if let Ok(id) = Uuid::parse_str(name_or_id) {
+            if let Some(g) = self.groups.iter().find(|g| g.id == id) {
+                return Some(g);
+            }
+        }
+        self.groups.iter().find(|g| g.name == name_or_id)
+    }
+
     /// Ensure the default "Ungrouped" top-level Group exists and return its id.
     pub fn ensure_ungrouped(&mut self) -> Uuid {
         if let Some(id) = self.ungrouped_group_id() {

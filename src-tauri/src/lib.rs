@@ -19,18 +19,34 @@ pub fn run() {
             app.manage(state);
 
             let config_dir = paths::config_dir().expect("failed to resolve config dir");
-            if !gitty_core::scheduler::daemon::is_already_running(&config_dir) {
-                let scheduler_dir = config_dir.clone();
-                std::thread::spawn(move || loop {
-                    gitty_core::scheduler::runner::tick(&scheduler_dir);
-                    std::thread::sleep(std::time::Duration::from_secs(30));
-                });
-            }
+            let has_external_daemon =
+                gitty_core::scheduler::daemon::is_already_running(&config_dir);
 
-            let poll_dir = paths::config_dir().expect("failed to resolve config dir");
-            std::thread::spawn(move || loop {
-                std::thread::sleep(std::time::Duration::from_secs(300));
-                gitty_core::scheduler::runner::health_poll(&poll_dir);
+            let app_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                let mut ticks_since_health_poll: u32 = 0;
+                loop {
+                    let app_state = app_handle.state::<AppState>();
+
+                    if !has_external_daemon {
+                        let _ = app_state.with_config_write(|config| {
+                            gitty_core::scheduler::runner::tick_with_config(config, &config_dir);
+                            Ok(())
+                        });
+                    }
+
+                    // Health-only poll every ~5 minutes (10 ticks × 30s)
+                    ticks_since_health_poll += 1;
+                    if ticks_since_health_poll >= 10 {
+                        ticks_since_health_poll = 0;
+                        let _ = app_state.with_config_write(|config| {
+                            gitty_core::scheduler::runner::evaluate_health(config, &config_dir);
+                            Ok(())
+                        });
+                    }
+
+                    std::thread::sleep(std::time::Duration::from_secs(30));
+                }
             });
 
             Ok(())

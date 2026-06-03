@@ -17,6 +17,7 @@ pub mod lock;
 pub mod macro_def;
 pub mod notification;
 pub mod power;
+pub mod process;
 pub mod reconcile;
 pub mod repository;
 pub mod scan;

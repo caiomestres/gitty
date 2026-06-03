@@ -31,15 +31,10 @@ fn default_fetch_macro() -> MacroDef {
     }
 }
 
-/// Run one scheduler tick: check if we should run, execute the macro,
-/// re-evaluate health, and generate notifications.
-/// Returns true if a run was executed.
-pub fn tick(config_dir: &std::path::Path) -> bool {
-    let mut config = match Config::load() {
-        Ok(c) => c,
-        Err(_) => return false,
-    };
-
+/// Run one scheduler tick against the provided config.
+/// The caller is responsible for loading and persisting `config`.
+/// Returns true if a macro run was executed.
+pub fn tick_with_config(config: &mut Config, config_dir: &std::path::Path) -> bool {
     let now = OffsetDateTime::now_utc();
     let (on_battery, battery_level) = power::battery_state();
 
@@ -65,6 +60,35 @@ pub fn tick(config_dir: &std::path::Path) -> bool {
     }
 
     scheduler::record_run(&mut config.scheduler, now);
+
+    evaluate_health(config, config_dir);
+    true
+}
+
+/// Standalone convenience: loads config from disk, runs a tick, saves if changed.
+/// Used by the CLI daemon where there is no shared state.
+pub fn tick(config_dir: &std::path::Path) -> bool {
+    let mut config = match Config::load() {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+
+    let ran = tick_with_config(&mut config, config_dir);
+    if ran {
+        let _ = config.save();
+    }
+    ran
+}
+
+/// Re-evaluate health and generate notifications.
+/// Operates on the provided config so callers with shared state can avoid races.
+pub fn evaluate_health(config: &mut Config, config_dir: &std::path::Path) {
+    let active_repos: Vec<_> = config
+        .workspace
+        .repositories
+        .iter()
+        .filter(|r| r.state == RepositoryState::Active)
+        .collect();
 
     let checks = health::default_checks();
     let thresholds = config.workspace.health_thresholds.clone();
@@ -92,41 +116,17 @@ pub fn tick(config_dir: &std::path::Path) -> bool {
     ) {
         config.notification_history.push(notif);
     }
-
-    let _ = config.save();
-    true
 }
 
-/// Re-evaluate health without running any macro.
+/// Re-evaluate health without running any macro (standalone, loads from disk).
 pub fn health_poll(config_dir: &std::path::Path) {
-    let config = match Config::load() {
+    let mut config = match Config::load() {
         Ok(c) => c,
         Err(_) => return,
     };
 
-    let repos: Vec<_> = config
-        .workspace
-        .repositories
-        .iter()
-        .filter(|r| r.state == RepositoryState::Active)
-        .collect();
-
-    let checks = health::default_checks();
-    let thresholds = &config.workspace.health_thresholds;
-    let mut statuses = HashMap::new();
-    for repo in &repos {
-        if let Ok(s) = read::read_status(&repo.path) {
-            statuses.insert(repo.id, s);
-        }
-    }
-
-    let current_health = health::evaluate_workspace(
-        &config.workspace.repositories,
-        &statuses,
-        &checks,
-        thresholds,
-    );
-    let _ = health_cache::save(&current_health, config_dir);
+    evaluate_health(&mut config, config_dir);
+    let _ = config.save();
 }
 
 /// Run the scheduler in a blocking loop. Checks every `poll_seconds`.

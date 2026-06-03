@@ -12,16 +12,9 @@ use gitty_core::config::Config;
 use uuid::Uuid;
 
 pub fn resolve_group_id(config: &Config, name_or_id: &str) -> Result<Uuid> {
-    if let Ok(id) = Uuid::parse_str(name_or_id) {
-        if config.workspace.list_groups().iter().any(|g| g.id == id) {
-            return Ok(id);
-        }
-    }
     config
         .workspace
-        .list_groups()
-        .iter()
-        .find(|g| g.name == name_or_id)
+        .find_group_by_name_or_id(name_or_id)
         .map(|g| g.id)
         .ok_or_else(|| anyhow::anyhow!("no group matching '{name_or_id}'"))
 }

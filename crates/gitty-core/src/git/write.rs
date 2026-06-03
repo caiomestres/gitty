@@ -6,7 +6,6 @@
 //! `GIT_SSH_COMMAND="ssh -o BatchMode=yes"` to prevent interactive credential
 //! or SSH passphrase prompts from blocking the process.
 
-use std::fmt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -105,88 +104,10 @@ impl GitBinary {
 }
 
 // ---------------------------------------------------------------------------
-// Error classification
+// Error classification (re-exported from git::classify)
 // ---------------------------------------------------------------------------
 
-/// Actionable category for a failed `git` operation, derived from stderr
-/// pattern matching (D14).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ErrorCategory {
-    Network,
-    Auth,
-    Conflict,
-    DirtyWorkTree,
-    BranchNotFound,
-    NoUpstream,
-    Unknown(String),
-}
-
-impl fmt::Display for ErrorCategory {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Network => write!(f, "network error"),
-            Self::Auth => write!(f, "authentication failed"),
-            Self::Conflict => write!(f, "merge conflict"),
-            Self::DirtyWorkTree => write!(f, "dirty working tree"),
-            Self::BranchNotFound => write!(f, "branch not found"),
-            Self::NoUpstream => write!(f, "no upstream configured"),
-            Self::Unknown(msg) => write!(f, "{msg}"),
-        }
-    }
-}
-
-/// Classify stderr from a failed `git` command into an actionable category.
-/// Case-insensitive substring matching, first match wins.
-pub fn classify_error(stderr: &str) -> ErrorCategory {
-    let lower = stderr.to_lowercase();
-
-    if lower.contains("could not resolve host")
-        || lower.contains("unable to access")
-        || lower.contains("connection refused")
-        || lower.contains("network is unreachable")
-        || lower.contains("timed out")
-        || lower.contains("connection timed out")
-    {
-        return ErrorCategory::Network;
-    }
-    if lower.contains("authentication failed")
-        || lower.contains("invalid username or password")
-        || lower.contains("could not read username")
-        || lower.contains("could not read from remote")
-        || lower.contains("terminal prompts disabled")
-    {
-        return ErrorCategory::Auth;
-    }
-    if lower.contains("conflict") && lower.contains("merge")
-        || lower.contains("fix conflicts")
-        || lower.contains("automatic merge failed")
-    {
-        return ErrorCategory::Conflict;
-    }
-    if lower.contains("your local changes")
-        || lower.contains("please commit your changes or stash them")
-        || lower.contains("overwritten by")
-    {
-        return ErrorCategory::DirtyWorkTree;
-    }
-    if lower.contains("did not match any")
-        || lower.contains("pathspec")
-            && (lower.contains("did not match") || lower.contains("unknown revision"))
-        || lower.contains("not a valid branch name")
-        || lower.contains("invalid reference")
-    {
-        return ErrorCategory::BranchNotFound;
-    }
-    if lower.contains("no tracking information")
-        || lower.contains("no upstream")
-        || lower.contains("there is no tracking information")
-    {
-        return ErrorCategory::NoUpstream;
-    }
-
-    let summary = stderr.lines().next().unwrap_or(stderr).trim().to_string();
-    ErrorCategory::Unknown(summary)
-}
+pub use super::classify::{classify_error, ErrorCategory};
 
 /// Classified outcome of a git write operation.
 #[derive(Debug)]
@@ -239,74 +160,10 @@ impl GitBinary {
 }
 
 // ---------------------------------------------------------------------------
-// Repository matching
+// Repository matching (re-exported from git::resolve)
 // ---------------------------------------------------------------------------
 
-/// Match a user-supplied `target` against registered repositories.
-///
-/// Matches by exact canonical path first, then by last path component
-/// (directory name). Returns an error if the directory-name match is
-/// ambiguous (multiple repos share the same name).
-pub fn match_repo<'a>(
-    repos: &'a [Repository],
-    target: &str,
-) -> std::result::Result<&'a Repository, MatchError> {
-    let target_path = Path::new(target);
-
-    // 1. Exact canonical path match.
-    if let Some(repo) = repos.iter().find(|r| r.path == target_path) {
-        return Ok(repo);
-    }
-
-    // 2. Last path component match.
-    let matches: Vec<&Repository> = repos
-        .iter()
-        .filter(|r| {
-            r.path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .is_some_and(|name| name == target)
-        })
-        .collect();
-
-    match matches.len() {
-        0 => Err(MatchError::NotFound(target.to_string())),
-        1 => Ok(matches[0]),
-        _ => {
-            let paths: Vec<String> = matches
-                .iter()
-                .map(|r| r.path.display().to_string())
-                .collect();
-            Err(MatchError::Ambiguous {
-                name: target.to_string(),
-                paths,
-            })
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum MatchError {
-    NotFound(String),
-    Ambiguous { name: String, paths: Vec<String> },
-}
-
-impl fmt::Display for MatchError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::NotFound(name) => write!(f, "no repository matching '{name}'"),
-            Self::Ambiguous { name, paths } => {
-                write!(f, "'{name}' is ambiguous, matches multiple repositories:")?;
-                for p in paths {
-                    write!(f, "\n  {p}")?;
-                }
-                write!(f, "\nUse the full path to disambiguate.")
-            }
-        }
-    }
-}
-
-impl std::error::Error for MatchError {}
+pub use super::resolve::{match_repo, MatchError};
 
 // ---------------------------------------------------------------------------
 // Batch execution
@@ -380,71 +237,16 @@ pub enum BatchOp<'a> {
 }
 
 impl GitBinary {
-    /// Execute `op` against every repository in the list. Sequential in v1
-    /// (D15 — parallel requires Lock).
+    /// Execute `op` against every repository in the list, optionally acquiring
+    /// per-repo locks when `locks_dir` is provided (ADR-0006).
     ///
     /// `Missing` repositories produce `RepoOutcome::Skipped`. Failures never
     /// abort the remaining repositories.
-    pub fn run_batch(&self, repos: &[Repository], op: &BatchOp<'_>) -> BatchResult {
-        let results = repos
-            .iter()
-            .map(|r| {
-                if r.state == RepositoryState::Missing {
-                    return RepoOperationResult {
-                        repo_path: r.path.clone(),
-                        outcome: RepoOutcome::Skipped {
-                            reason: "repository path not found".into(),
-                        },
-                    };
-                }
-
-                let git_result = match op {
-                    BatchOp::Fetch => self.fetch(&r.path),
-                    BatchOp::Pull => self.pull(&r.path),
-                    BatchOp::Checkout(branch) => self.checkout(&r.path, branch),
-                };
-
-                let outcome = match git_result {
-                    Ok(GitResult::Success(output)) => RepoOutcome::Success(output),
-                    Ok(GitResult::Failed { output, category }) => {
-                        RepoOutcome::Failed { output, category }
-                    }
-                    Err(e) => RepoOutcome::Failed {
-                        output: GitOutput {
-                            exit_code: -1,
-                            stdout: String::new(),
-                            stderr: e.to_string(),
-                        },
-                        category: ErrorCategory::Unknown(e.to_string()),
-                    },
-                };
-
-                RepoOperationResult {
-                    repo_path: r.path.clone(),
-                    outcome,
-                }
-            })
-            .collect();
-
-        BatchResult { results }
-    }
-
-    /// Execute `op` against every repository with per-repo locking (ADR-0006).
-    ///
-    /// Same semantics as [`run_batch`] but acquires a [`RepoLock`] before each
-    /// operation. A repository locked by another process produces
-    /// `RepoOutcome::Locked` instead of being attempted.
-    pub fn run_batch_locked(&self, repos: &[Repository], op: &BatchOp<'_>) -> Result<BatchResult> {
-        let locks_dir = crate::config::paths::locks_dir()?;
-        Ok(self.run_batch_locked_in(repos, op, &locks_dir))
-    }
-
-    /// Locked batch execution with a caller-specified locks directory.
-    pub fn run_batch_locked_in(
+    pub fn run_batch_in(
         &self,
         repos: &[Repository],
         op: &BatchOp<'_>,
-        locks_dir: &Path,
+        locks_dir: Option<&Path>,
     ) -> BatchResult {
         use crate::lock::RepoLock;
 
@@ -460,30 +262,34 @@ impl GitBinary {
                     };
                 }
 
-                let _lock = match RepoLock::acquire_in(r.id, locks_dir) {
-                    Ok(lock) => lock,
-                    Err(CoreError::LockContention { pid, since, .. }) => {
-                        return RepoOperationResult {
-                            repo_path: r.path.clone(),
-                            outcome: RepoOutcome::Locked {
-                                holder_pid: pid,
-                                since,
-                            },
-                        };
-                    }
-                    Err(e) => {
-                        return RepoOperationResult {
-                            repo_path: r.path.clone(),
-                            outcome: RepoOutcome::Failed {
-                                output: GitOutput {
-                                    exit_code: -1,
-                                    stdout: String::new(),
-                                    stderr: format!("lock error: {e}"),
+                let _lock = if let Some(dir) = locks_dir {
+                    match RepoLock::acquire_in(r.id, dir) {
+                        Ok(lock) => Some(lock),
+                        Err(CoreError::LockContention { pid, since, .. }) => {
+                            return RepoOperationResult {
+                                repo_path: r.path.clone(),
+                                outcome: RepoOutcome::Locked {
+                                    holder_pid: pid,
+                                    since,
                                 },
-                                category: ErrorCategory::Unknown(format!("lock error: {e}")),
-                            },
-                        };
+                            };
+                        }
+                        Err(e) => {
+                            return RepoOperationResult {
+                                repo_path: r.path.clone(),
+                                outcome: RepoOutcome::Failed {
+                                    output: GitOutput {
+                                        exit_code: -1,
+                                        stdout: String::new(),
+                                        stderr: format!("lock error: {e}"),
+                                    },
+                                    category: ErrorCategory::Unknown(format!("lock error: {e}")),
+                                },
+                            };
+                        }
                     }
+                } else {
+                    None
                 };
 
                 let git_result = match op {
@@ -516,6 +322,27 @@ impl GitBinary {
 
         BatchResult { results }
     }
+
+    /// Execute `op` without locking (convenience wrapper).
+    pub fn run_batch(&self, repos: &[Repository], op: &BatchOp<'_>) -> BatchResult {
+        self.run_batch_in(repos, op, None)
+    }
+
+    /// Execute `op` with per-repo locking using the default locks directory.
+    pub fn run_batch_locked(&self, repos: &[Repository], op: &BatchOp<'_>) -> Result<BatchResult> {
+        let locks_dir = crate::config::paths::locks_dir()?;
+        Ok(self.run_batch_in(repos, op, Some(&locks_dir)))
+    }
+
+    /// Locked batch execution with a caller-specified locks directory.
+    pub fn run_batch_locked_in(
+        &self,
+        repos: &[Repository],
+        op: &BatchOp<'_>,
+        locks_dir: &Path,
+    ) -> BatchResult {
+        self.run_batch_in(repos, op, Some(locks_dir))
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -525,8 +352,7 @@ impl GitBinary {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // -- GitBinary resolution --
+    use crate::git::test_helpers::init_test_repo;
 
     #[test]
     fn resolve_finds_git_on_path() {
@@ -542,97 +368,6 @@ mod tests {
             "version should start with 'git version', got: {}",
             git.version()
         );
-    }
-
-    // -- Error classification --
-
-    #[test]
-    fn classify_network_errors() {
-        assert_eq!(
-            classify_error(
-                "fatal: unable to access 'https://...': Could not resolve host: github.com"
-            ),
-            ErrorCategory::Network,
-        );
-        assert_eq!(
-            classify_error("fatal: unable to access 'https://...': Connection refused"),
-            ErrorCategory::Network,
-        );
-    }
-
-    #[test]
-    fn classify_auth_errors() {
-        assert_eq!(
-            classify_error("fatal: Authentication failed for 'https://...'"),
-            ErrorCategory::Auth,
-        );
-        assert_eq!(
-            classify_error(
-                "fatal: could not read Username for 'https://...': terminal prompts disabled"
-            ),
-            ErrorCategory::Auth,
-        );
-        assert_eq!(
-            classify_error("fatal: Could not read from remote repository."),
-            ErrorCategory::Auth,
-        );
-    }
-
-    #[test]
-    fn classify_conflict() {
-        assert_eq!(
-            classify_error("CONFLICT (content): Merge conflict in foo.rs\nAutomatic merge failed; fix conflicts and then commit."),
-            ErrorCategory::Conflict,
-        );
-    }
-
-    #[test]
-    fn classify_dirty_worktree() {
-        assert_eq!(
-            classify_error("error: Your local changes to the following files would be overwritten by checkout:\n  foo.rs\nPlease commit your changes or stash them before you switch branches."),
-            ErrorCategory::DirtyWorkTree,
-        );
-    }
-
-    #[test]
-    fn classify_branch_not_found() {
-        assert_eq!(
-            classify_error(
-                "error: pathspec 'no-such-branch' did not match any file(s) known to git"
-            ),
-            ErrorCategory::BranchNotFound,
-        );
-    }
-
-    #[test]
-    fn classify_no_upstream() {
-        assert_eq!(
-            classify_error("There is no tracking information for the current branch."),
-            ErrorCategory::NoUpstream,
-        );
-    }
-
-    #[test]
-    fn classify_unknown_fallback() {
-        let kind = classify_error("something unexpected happened\nsecond line");
-        assert!(
-            matches!(kind, ErrorCategory::Unknown(msg) if msg == "something unexpected happened")
-        );
-    }
-
-    // -- Runner + typed operations against a real repo --
-
-    fn init_test_repo(dir: &Path) {
-        let repo = git2::Repository::init(dir).unwrap();
-        let workdir = repo.workdir().unwrap();
-        std::fs::write(workdir.join("a.txt"), "hello").unwrap();
-        let mut index = repo.index().unwrap();
-        index.add_path(Path::new("a.txt")).unwrap();
-        index.write().unwrap();
-        let tree = repo.find_tree(index.write_tree().unwrap()).unwrap();
-        let sig = git2::Signature::now("Test", "test@example.com").unwrap();
-        repo.commit(Some("HEAD"), &sig, &sig, "init", &tree, &[])
-            .unwrap();
     }
 
     #[test]
@@ -669,50 +404,6 @@ mod tests {
             GitResult::Success(_) => panic!("expected Failed, got Success"),
         }
     }
-
-    // -- Repository matching --
-
-    #[test]
-    fn match_repo_by_exact_path() {
-        let repos = vec![
-            Repository::new(PathBuf::from("/code/alpha"), Some("fp1".into())),
-            Repository::new(PathBuf::from("/code/beta"), Some("fp2".into())),
-        ];
-        let found = match_repo(&repos, "/code/alpha").unwrap();
-        assert_eq!(found.path, Path::new("/code/alpha"));
-    }
-
-    #[test]
-    fn match_repo_by_dir_name() {
-        let repos = vec![
-            Repository::new(PathBuf::from("/code/alpha"), Some("fp1".into())),
-            Repository::new(PathBuf::from("/code/beta"), Some("fp2".into())),
-        ];
-        let found = match_repo(&repos, "beta").unwrap();
-        assert_eq!(found.path, Path::new("/code/beta"));
-    }
-
-    #[test]
-    fn match_repo_ambiguous_errors() {
-        let repos = vec![
-            Repository::new(PathBuf::from("/a/shared"), Some("fp1".into())),
-            Repository::new(PathBuf::from("/b/shared"), Some("fp2".into())),
-        ];
-        let err = match_repo(&repos, "shared").unwrap_err();
-        assert!(matches!(err, MatchError::Ambiguous { .. }));
-    }
-
-    #[test]
-    fn match_repo_not_found_errors() {
-        let repos = vec![Repository::new(
-            PathBuf::from("/code/alpha"),
-            Some("fp1".into()),
-        )];
-        let err = match_repo(&repos, "nope").unwrap_err();
-        assert!(matches!(err, MatchError::NotFound(_)));
-    }
-
-    // -- Batch execution --
 
     #[test]
     fn batch_includes_skipped_for_missing_repos() {

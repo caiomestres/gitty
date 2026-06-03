@@ -60,12 +60,10 @@ fn execute_macro_on_repo(macro_def: &MacroDef, repo: &Repository, git: &GitBinar
     job
 }
 
+/// A step runs unless its condition is explicitly set to a falsy literal.
+/// This is intentionally a simple boolean flag — not an expression evaluator.
 fn should_run_step(step: &Step) -> bool {
-    match step.condition.as_deref() {
-        None | Some("") => true,
-        Some("false") | Some("0") => false,
-        Some(_) => true,
-    }
+    !matches!(step.condition.as_deref(), Some("false" | "0"))
 }
 
 fn execute_step(step_index: usize, step: &Step, repo: &Repository, git: &GitBinary) -> StepResult {
@@ -159,23 +157,10 @@ fn combine_git_output(stdout: &str, stderr: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
 
+    use crate::git::test_helpers::init_test_repo;
     use crate::macro_def::{GitOp, StepKind};
     use uuid::Uuid;
-
-    fn init_test_repo(dir: &Path) {
-        let repo = git2::Repository::init(dir).unwrap();
-        let workdir = repo.workdir().unwrap();
-        std::fs::write(workdir.join("a.txt"), "hello").unwrap();
-        let mut index = repo.index().unwrap();
-        index.add_path(Path::new("a.txt")).unwrap();
-        index.write().unwrap();
-        let tree = repo.find_tree(index.write_tree().unwrap()).unwrap();
-        let sig = git2::Signature::now("Test", "test@example.com").unwrap();
-        repo.commit(Some("HEAD"), &sig, &sig, "init", &tree, &[])
-            .unwrap();
-    }
 
     #[test]
     fn execute_fetch_macro_succeeds() {

@@ -184,7 +184,7 @@ enum NotificationAction {
     Show,
     /// Set the notification trigger mode.
     Set {
-        /// Trigger mode: on-critical, on-any-change, on-scheduler-complete, disabled
+        /// Trigger mode: on_critical, on_any_change, on_scheduler_complete, disabled
         mode: String,
     },
 }

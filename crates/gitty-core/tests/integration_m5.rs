@@ -1,3 +1,5 @@
+mod common;
+
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -10,16 +12,8 @@ use gitty_core::scheduler::{self, DayOfWeek, SchedulerConfig, SchedulerTrigger, 
 use time::OffsetDateTime;
 
 fn init_test_repo(dir: &Path) {
-    let repo = git2::Repository::init(dir).unwrap();
-    let workdir = repo.workdir().unwrap();
-    std::fs::write(workdir.join("a.txt"), "hello").unwrap();
-    let mut index = repo.index().unwrap();
-    index.add_path(Path::new("a.txt")).unwrap();
-    index.write().unwrap();
-    let tree = repo.find_tree(index.write_tree().unwrap()).unwrap();
-    let sig = git2::Signature::now("Test", "test@example.com").unwrap();
-    repo.commit(Some("HEAD"), &sig, &sig, "init", &tree, &[])
-        .unwrap();
+    let repo = common::init_repo(dir);
+    common::commit_file(&repo, "a.txt", "hello", "init");
 }
 
 #[test]

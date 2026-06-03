@@ -16,18 +16,11 @@ pub struct CachedHealth {
 }
 
 /// Save workspace health to `health.json` in the given directory.
-/// Uses atomic temp+rename and advisory file locking via `fs2`.
+/// Uses atomic temp+rename for safe concurrent access.
 pub fn save(health: &WorkspaceHealth, dir: &Path) -> Result<()> {
-    use fs2::FileExt;
-
     std::fs::create_dir_all(dir)?;
 
     let path = dir.join(HEALTH_FILE);
-    let lock_path = dir.join("health.json.lock");
-
-    let lock_file = std::fs::File::create(&lock_path)?;
-    lock_file.lock_exclusive()?;
-
     let cached = CachedHealth {
         last_evaluated: OffsetDateTime::now_utc()
             .format(&Rfc3339)
@@ -40,7 +33,6 @@ pub fn save(health: &WorkspaceHealth, dir: &Path) -> Result<()> {
     std::fs::write(&tmp, &json)?;
     std::fs::rename(&tmp, &path)?;
 
-    lock_file.unlock()?;
     Ok(())
 }
 

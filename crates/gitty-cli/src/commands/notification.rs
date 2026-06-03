@@ -1,21 +1,36 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use gitty_core::config::Config;
 
 use crate::NotificationAction;
+
+fn parse_trigger(s: &str) -> Option<gitty_core::notification::NotificationTrigger> {
+    use gitty_core::notification::NotificationTrigger;
+    match s {
+        "on_critical" | "on-critical" => Some(NotificationTrigger::OnCritical),
+        "on_any_change" | "on-any-change" => Some(NotificationTrigger::OnAnyChange),
+        "on_scheduler_complete" | "on-scheduler-complete" => {
+            Some(NotificationTrigger::OnSchedulerComplete)
+        }
+        "disabled" => Some(NotificationTrigger::Disabled),
+        _ => None,
+    }
+}
+
+fn trigger_display(trigger: &gitty_core::notification::NotificationTrigger) -> &'static str {
+    use gitty_core::notification::NotificationTrigger;
+    match trigger {
+        NotificationTrigger::OnCritical => "on_critical",
+        NotificationTrigger::OnAnyChange => "on_any_change",
+        NotificationTrigger::OnSchedulerComplete => "on_scheduler_complete",
+        NotificationTrigger::Disabled => "disabled",
+    }
+}
 
 pub fn cmd_notification(action: NotificationAction) -> Result<()> {
     match action {
         NotificationAction::Show => {
             let config = Config::load().context("loading config")?;
-            let trigger = &config.notifications.trigger;
-            let mode = match trigger {
-                gitty_core::notification::NotificationTrigger::OnCritical => "on-critical",
-                gitty_core::notification::NotificationTrigger::OnAnyChange => "on-any-change",
-                gitty_core::notification::NotificationTrigger::OnSchedulerComplete => {
-                    "on-scheduler-complete"
-                }
-                gitty_core::notification::NotificationTrigger::Disabled => "disabled",
-            };
+            let mode = trigger_display(&config.notifications.trigger);
             println!("Notification trigger: {mode}");
             if let Some(interval) = config.notifications.polling_interval_minutes {
                 println!("Polling interval:     {interval} minutes");
@@ -26,17 +41,11 @@ pub fn cmd_notification(action: NotificationAction) -> Result<()> {
             );
         }
         NotificationAction::Set { mode } => {
-            let trigger = match mode.as_str() {
-                "on-critical" => gitty_core::notification::NotificationTrigger::OnCritical,
-                "on-any-change" => gitty_core::notification::NotificationTrigger::OnAnyChange,
-                "on-scheduler-complete" => {
-                    gitty_core::notification::NotificationTrigger::OnSchedulerComplete
-                }
-                "disabled" => gitty_core::notification::NotificationTrigger::Disabled,
-                other => bail!(
-                    "unknown trigger mode '{other}'. Use: on-critical, on-any-change, on-scheduler-complete, disabled"
-                ),
-            };
+            let trigger = parse_trigger(&mode).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "unknown trigger mode '{mode}'. Use: on_critical, on_any_change, on_scheduler_complete, disabled"
+                )
+            })?;
             let mut config = Config::load().context("loading config")?;
             config.notifications.trigger = trigger;
             config.save().context("saving config")?;
