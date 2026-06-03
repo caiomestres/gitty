@@ -15,6 +15,7 @@ gitty-core = { path = "../gitty-core" }
 clap = { version = "4", features = ["derive"] }
 anyhow = "1.0.102"
 uuid = { version = "1", features = ["v4"] }
+time = { version = "0.3.47", features = ["formatting", "serde-well-known"] }
 
 [dev-dependencies]
 assert_cmd = "2.2.2"

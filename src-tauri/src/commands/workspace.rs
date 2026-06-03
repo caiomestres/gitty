@@ -110,7 +110,12 @@ fn batch_to_dto(batch: gitty_core::git::write::BatchResult) -> BulkResultDto {
                 }
             };
             RepoOpDto {
-                repo_name: super::repo_name(&r.repo_path),
+                repo_name: r
+                    .repo_path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or_default()
+                    .to_string(),
                 repo_path: r.repo_path.display().to_string(),
                 success,
                 message,

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::group::Group;
+use crate::health::HealthThresholds;
 use crate::macro_def::MacroDef;
 
 /// Lifecycle state of a registered Repository.
@@ -38,6 +39,13 @@ pub struct Repository {
 }
 
 impl Repository {
+    pub fn display_name(&self) -> &str {
+        self.path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("<repo>")
+    }
+
     pub fn new(path: PathBuf, fingerprint: Option<String>) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -68,6 +76,8 @@ pub struct Workspace {
     pub groups: Vec<Group>,
     #[serde(default)]
     pub macros: Vec<MacroDef>,
+    #[serde(default)]
+    pub health_thresholds: HealthThresholds,
 }
 
 impl Workspace {

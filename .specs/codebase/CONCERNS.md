@@ -1,25 +1,47 @@
 # Concerns
 
-> All concerns from initial brownfield analysis have been resolved.
+## Active
+
+_No active concerns._
 
 ## Resolved
 
-### ARCH-1: Single crate vs. planned workspace ✅
+### CODE-1: CLI main.rs at 1012 lines -> decomposed
 
-**Resolution:** Migrated to Cargo workspace. Root `Cargo.toml` defines workspace with members: `crates/gitty-core`, `crates/gitty-cli`, `src-tauri` (gitty-tauri). All three crates compile and test cleanly.
+**Resolution:** Extracted 8 command handler modules into `crates/gitty-cli/src/commands/` (workspace, group, tag, filter, macros, health, scheduler, notification). Shared helper `resolve_group_id` in `commands/mod.rs`. `main.rs` reduced to ~220 lines (CLI struct definitions + dispatch).
 
-### SEC-1: CSP not configured ✅
+### CODE-2: name_from_path duplicated Repository::display_name()
 
-**Resolution:** CSP configured in `src-tauri/tauri.conf.json`: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https://asset.localhost`
+**Resolution:** Removed `name_from_path()` from `src-tauri/src/commands/mod.rs`. The one remaining usage in `batch_to_dto()` extracts the name inline from `PathBuf` (not a `Repository`, so `display_name()` is unavailable in that context).
 
-### TEST-1: No tests exist ✅
+### CODE-3: Health/Settings pages used $effect instead of onMount
 
-**Resolution:** Vitest added to `package.json` with smoke test at `src/lib/smoke.test.ts`. Rust scaffold test in `crates/gitty-core/src/lib.rs`. Gate check commands functional: `cargo test`, `npx vitest run`.
+**Resolution:** Replaced `$effect(() => { loadHealth(); })` with `onMount(() => { loadHealth(); })` in `src/routes/health/+page.svelte`. Same fix applied to `src/routes/settings/+page.svelte` for `loadScanRoots()`, `loadSchedulerConfig()`, and `loadNotifConfig()`. Aligns with D64.
 
-### FE-1: Scaffold UI doesn't match design system ✅ (acknowledged)
+### CODE-4: Dead variable in scheduler runner
 
-**Resolution:** Acknowledged — scaffold will be replaced in Milestone 3. No action needed until then.
+**Resolution:** Renamed `repos` to `active_repos` and used it directly for both macro execution and health evaluation, eliminating the redundant `Selection::All.resolve()` call and unnecessary `.cloned()`.
 
-### FE-2: No ESLint or Prettier configured ✅
+### ARCH-1: Single crate vs. planned workspace
 
-**Resolution:** ESLint flat config (`eslint.config.js`) with `typescript-eslint` + `eslint-plugin-svelte` + `svelte-eslint-parser`. Prettier with `prettier-plugin-svelte`. Husky pre-commit hook running `lint-staged`. Scripts: `npm run lint`, `npm run format`, `npm run format:check`.
+**Resolution:** Migrated to Cargo workspace with 3 members: `gitty-core`, `gitty-cli`, `src-tauri`.
+
+### SEC-1: CSP not configured
+
+**Resolution:** CSP configured in `src-tauri/tauri.conf.json`.
+
+### TEST-1: No tests exist
+
+**Resolution:** 165 tests total across the workspace.
+
+### FE-1: Scaffold UI doesn't match design system
+
+**Resolution:** Full design system implemented in M3 with CSS custom properties from DESIGN.md.
+
+### FE-2: No ESLint or Prettier configured
+
+**Resolution:** ESLint flat config + Prettier + Husky pre-commit hook.
+
+### CLIPPY-1: Derivable Default impl in SchedulerConfig
+
+**Resolution:** Replaced manual `impl Default for SchedulerConfig` with `#[derive(Default)]`.

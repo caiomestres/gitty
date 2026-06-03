@@ -85,6 +85,11 @@ impl Workspace {
         &self.macros
     }
 
+    /// Look up a Macro by id.
+    pub fn find_macro_by_id(&self, id: Uuid) -> Option<&MacroDef> {
+        self.macros.iter().find(|m| m.id == id)
+    }
+
     /// Look up a Macro by exact name or UUID string.
     pub fn find_macro(&self, name_or_id: &str) -> Option<&MacroDef> {
         if let Ok(id) = Uuid::parse_str(name_or_id) {

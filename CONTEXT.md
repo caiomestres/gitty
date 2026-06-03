@@ -82,6 +82,10 @@ _Avoid_: cron, timer, automation engine
 A file-level lock preventing the CLI and GUI from running conflicting operations on the same Repository simultaneously. Stored centrally in the Config directory.
 _Avoid_: mutex, semaphore
 
+**Notification**:
+A timestamped record surfaced to the user when a notable event occurs (Health Check entering critical, Scheduler run completing, etc.). Delivered via OS-native toast for critical severity and displayed in an in-app panel for all severities. Stored as a bounded list in Config with a 7-day TTL. Triggers are user-configurable.
+_Avoid_: alert, event, message
+
 ### Deferred (v2)
 
 **Dependency Map**:

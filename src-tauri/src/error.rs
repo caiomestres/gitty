@@ -31,6 +31,7 @@ impl From<CoreError> for AppError {
             }
             CoreError::Git(_) | CoreError::GitNotFound => "git_error",
             CoreError::LockContention { .. } => "lock_contention",
+            CoreError::Other(_) => "internal_error",
         };
         Self {
             code: code.to_string(),

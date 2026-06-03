@@ -55,7 +55,7 @@
 - **Macro builder page** — Visual step editor with Git Op picker, Shell input, conditions, rollback, variables (D32)
 - **Macro execution** — Selection dialog (All/Group/Tag/individual) + inline Job results panel (D33+D34)
 
-## Milestone 5: Health, Dashboard & Automation
+## Milestone 5: Health, Dashboard & Automation (in progress)
 
 > Health Checks, Workspace Health score, Change Dashboard, Scheduler.
 
@@ -72,4 +72,5 @@
 - **Design system implementation** — Full DESIGN.md compliance
 - **Error handling** — Graceful failures, retry logic for transient errors
 - **Packaging** — Windows installer, macOS DMG, Linux AppImage
+- **Windows code signing** — Apply to SignPath.io (free for OSS), sign release binaries in GitHub Actions CI. Required for Windows SmartScreen/Smart App Control trust.
 - **User documentation** — Getting started, CLI reference

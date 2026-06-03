@@ -7,11 +7,13 @@
   import type { GroupTreeNodeDto } from "$lib/types/workspace";
 
   const navItems: {
-    href: "/" | "/groups" | "/macros" | "/settings";
+    href: "/" | "/groups" | "/macros" | "/health" | "/changes" | "/settings";
     label: string;
     icon: string;
   }[] = [
     { href: "/", label: "Dashboard", icon: "◫" },
+    { href: "/health", label: "Health", icon: "♥" },
+    { href: "/changes", label: "Changes", icon: "⟳" },
     { href: "/groups", label: "Groups", icon: "⊞" },
     { href: "/macros", label: "Macros", icon: "⚡" },
     { href: "/settings", label: "Settings", icon: "⚙" },

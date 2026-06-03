@@ -11,7 +11,7 @@ use tauri::State;
 use crate::error::AppError;
 use crate::state::AppState;
 
-use super::{parse_uuid, repo_name};
+use super::parse_uuid;
 
 // ---------------------------------------------------------------------------
 // DTOs
@@ -259,7 +259,7 @@ pub fn run_macro(
             let rn = config
                 .workspace
                 .find_by_id(job.repo_id)
-                .map(|r| repo_name(&r.path))
+                .map(|r| r.display_name().to_string())
                 .unwrap_or_else(|| job.repo_id.to_string());
 
             JobDto {

@@ -3,6 +3,7 @@
   import Sidebar from "./Sidebar.svelte";
   import StatusBar from "./StatusBar.svelte";
   import BottomBar from "./BottomBar.svelte";
+  import NotificationPanel from "./NotificationPanel.svelte";
 
   interface Props {
     children: Snippet;
@@ -12,7 +13,12 @@
 </script>
 
 <div class="app-shell">
-  <StatusBar />
+  <div class="top-bar">
+    <StatusBar />
+    <div class="top-bar-actions">
+      <NotificationPanel />
+    </div>
+  </div>
   <div class="app-body">
     <Sidebar />
     <main class="main-content">
@@ -29,6 +35,19 @@
     height: 100vh;
     overflow: hidden;
     background: var(--color-canvas);
+  }
+
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .top-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding-right: var(--space-base);
   }
 
   .app-body {

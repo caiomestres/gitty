@@ -5,7 +5,9 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{CoreError, Result};
+use crate::notification::{Notification, NotificationConfig};
 use crate::repository::Workspace;
+use crate::scheduler::SchedulerConfig;
 
 /// On-disk schema version, independent of the application's semantic version
 /// (ADR-0004). Bumped only when the persisted shape changes.
@@ -17,6 +19,12 @@ pub struct Config {
     pub version: u32,
     #[serde(default)]
     pub workspace: Workspace,
+    #[serde(default)]
+    pub scheduler: SchedulerConfig,
+    #[serde(default)]
+    pub notifications: NotificationConfig,
+    #[serde(default)]
+    pub notification_history: Vec<Notification>,
 }
 
 impl Default for Config {
@@ -24,6 +32,9 @@ impl Default for Config {
         Self {
             version: CURRENT_SCHEMA_VERSION,
             workspace: Workspace::default(),
+            scheduler: SchedulerConfig::default(),
+            notifications: NotificationConfig::default(),
+            notification_history: Vec::new(),
         }
     }
 }

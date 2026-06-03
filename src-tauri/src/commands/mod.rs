@@ -1,9 +1,11 @@
+pub mod changes;
 pub mod groups;
+pub mod health;
 pub mod macros;
+pub mod notifications;
+pub mod scheduler;
 pub mod tags;
 pub mod workspace;
-
-use std::path::Path;
 
 use gitty_core::repository::{Repository, RepositoryState};
 use gitty_core::Config;
@@ -22,18 +24,11 @@ pub struct RepoDto {
     pub tags: Vec<String>,
 }
 
-pub fn repo_name(path: &Path) -> String {
-    path.file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or_default()
-        .to_string()
-}
-
 pub fn repo_to_dto(repo: &Repository) -> RepoDto {
     RepoDto {
         id: repo.id.to_string(),
         path: repo.path.display().to_string(),
-        name: repo_name(&repo.path),
+        name: repo.display_name().to_string(),
         state: match repo.state {
             RepositoryState::Active => "active".into(),
             RepositoryState::Missing => "missing".into(),

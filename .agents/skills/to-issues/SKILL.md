@@ -31,25 +31,9 @@ Slices may be 'HITL' or 'AFK'. HITL slices require human interaction, such as an
 - Prefer many thin slices over few thick ones
 </vertical-slice-rules>
 
-### 4. Quiz the user
+### 4. Publish the issues to the issue tracker
 
-Present the proposed breakdown as a numbered list. For each slice, show:
-
-- **Title**: short descriptive name
-- **Type**: HITL / AFK
-- **Blocked by**: which other slices (if any) must complete first
-- **User stories covered**: which user stories this addresses (if the source material has them)
-
-Ask the user:
-
-- Does the granularity feel right? (too coarse / too fine)
-- Are the dependency relationships correct?
-- Should any slices be merged or split further?
-- Are the correct slices marked as HITL and AFK?
-
-Iterate until the user approves the breakdown.
-
-### 5. Publish the issues to the issue tracker
+Use your best judgment on granularity — do NOT stop the flow to quiz the user on slice breakdown. The grilling and spec phases already resolved ambiguity. Publish immediately with the best vertical slices you can produce.
 
 For each approved slice, publish a new issue to the issue tracker. Use the issue body template below. These issues are considered ready for AFK agents, so publish them with the correct triage label unless instructed otherwise.
 

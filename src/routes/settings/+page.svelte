@@ -1,5 +1,8 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { onMount } from "svelte";
+  import type { NotificationConfigDto } from "$lib/types/notifications";
+  import { getNotificationConfig, setNotificationConfig } from "$lib/types/notifications";
 
   let scanRoots = $state<string[]>([]);
   let loading = $state(true);
@@ -9,8 +12,77 @@
   let scanning = $state(false);
   let actionMessage = $state<string | null>(null);
 
-  $effect(() => {
+  // Scheduler state
+  let schedulerEnabled = $state(false);
+  let schedulerInterval = $state(30);
+  let schedulerLoading = $state(true);
+
+  // Notification state
+  let notifTrigger = $state<NotificationConfigDto["trigger"]>("on_critical");
+  let notifPollingMinutes = $state<number | null>(5);
+  let notifLoading = $state(true);
+
+  async function loadSchedulerConfig() {
+    schedulerLoading = true;
+    try {
+      const status = await invoke<{
+        enabled: boolean;
+        last_run: string | null;
+        next_run: string | null;
+      }>("get_scheduler_status");
+      schedulerEnabled = status.enabled;
+    } catch {
+      /* ignore */
+    } finally {
+      schedulerLoading = false;
+    }
+  }
+
+  async function saveSchedulerConfig() {
+    try {
+      await invoke("set_scheduler_config", {
+        config: {
+          enabled: schedulerEnabled,
+          trigger: { mode: "simple", interval_minutes: schedulerInterval },
+          power: { pause_on_battery: true, battery_threshold: 20 },
+          macro_id: null,
+        },
+      });
+      actionMessage = "Scheduler settings saved";
+    } catch (e) {
+      actionMessage = `Error: ${String(e)}`;
+    }
+  }
+
+  async function loadNotifConfig() {
+    notifLoading = true;
+    try {
+      const cfg = await getNotificationConfig();
+      notifTrigger = cfg.trigger;
+      notifPollingMinutes = cfg.polling_interval_minutes;
+    } catch {
+      /* ignore */
+    } finally {
+      notifLoading = false;
+    }
+  }
+
+  async function saveNotifConfig() {
+    try {
+      await setNotificationConfig({
+        trigger: notifTrigger,
+        polling_interval_minutes: notifPollingMinutes,
+      });
+      actionMessage = "Notification settings saved";
+    } catch (e) {
+      actionMessage = `Error: ${String(e)}`;
+    }
+  }
+
+  onMount(() => {
     loadScanRoots();
+    loadSchedulerConfig();
+    loadNotifConfig();
   });
 
   async function loadScanRoots() {
@@ -130,6 +202,77 @@
       </div>
     {/if}
   </section>
+
+  <section class="settings-section">
+    <div class="section-header">
+      <h3 class="section-title">Scheduler</h3>
+    </div>
+    <p class="section-desc">
+      Configure automatic background operations. When enabled, the scheduler periodically fetches
+      all repositories to keep them fresh.
+    </p>
+
+    {#if schedulerLoading}
+      <div class="empty-state">Loading scheduler settings…</div>
+    {:else}
+      <div class="setting-row">
+        <label class="setting-label">
+          <input type="checkbox" bind:checked={schedulerEnabled} onchange={saveSchedulerConfig} />
+          Enable scheduler
+        </label>
+      </div>
+      <div class="setting-row">
+        <label class="setting-label">
+          Interval (minutes)
+          <input
+            type="number"
+            class="setting-input"
+            min="1"
+            max="1440"
+            bind:value={schedulerInterval}
+            disabled={!schedulerEnabled}
+            onchange={saveSchedulerConfig}
+          />
+        </label>
+      </div>
+    {/if}
+  </section>
+
+  <section class="settings-section">
+    <div class="section-header">
+      <h3 class="section-title">Notifications</h3>
+    </div>
+    <p class="section-desc">Configure when health notifications are generated.</p>
+
+    {#if notifLoading}
+      <div class="empty-state">Loading notification settings…</div>
+    {:else}
+      <div class="setting-row">
+        <label class="setting-label">
+          Trigger
+          <select class="setting-select" bind:value={notifTrigger} onchange={saveNotifConfig}>
+            <option value="on_critical">On critical only</option>
+            <option value="on_any_change">On any change</option>
+            <option value="on_scheduler_complete">On scheduler complete</option>
+            <option value="disabled">Disabled</option>
+          </select>
+        </label>
+      </div>
+      <div class="setting-row">
+        <label class="setting-label">
+          Polling interval (minutes)
+          <input
+            type="number"
+            class="setting-input"
+            min="1"
+            max="60"
+            bind:value={notifPollingMinutes}
+            onchange={saveNotifConfig}
+          />
+        </label>
+      </div>
+    {/if}
+  </section>
 </div>
 
 {#if showAddDialog}
@@ -246,5 +389,36 @@
 
   .mono {
     font-family: var(--font-mono);
+  }
+
+  .setting-row {
+    margin-bottom: var(--space-sm);
+  }
+
+  .setting-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: 14px;
+    color: var(--color-body);
+  }
+
+  .setting-input {
+    width: 80px;
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--color-hairline-strong);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-card);
+    color: var(--color-ink);
+    font-size: 14px;
+  }
+
+  .setting-select {
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--color-hairline-strong);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-card);
+    color: var(--color-ink);
+    font-size: 14px;
   }
 </style>

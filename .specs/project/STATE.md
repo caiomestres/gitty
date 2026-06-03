@@ -41,6 +41,40 @@
 | D35 | New Tauri commands as individual `#[tauri::command]` functions (same pattern as existing) | Grilling Q14 | 2026-06-02 |
 | D36 | Managed state (`Mutex<Config>`) + `notify` file-watcher for config cache invalidation | ADR-0007 — Grilling Q15+Q18; supersedes D21 (stateless) | 2026-06-02 |
 | D37 | Structured error DTOs with error codes, bundled into M4 GUI refactor (all commands) | Grilling Q16+Q20 | 2026-06-02 |
+| D38 | 4 Health Checks via `trait HealthCheck`: Stale, Diverged, Dirty, Detached | Extensibility goal; future user-defined checks | 2026-06-02 |
+| D39 | Stale = HEAD commit author-date age > configurable threshold (default 7d) | Uses existing CommitSummary.date | 2026-06-02 |
+| D40 | Health thresholds configurable per-Workspace in Config with sensible defaults | stale:7d, diverged: >5=warn >20=crit | 2026-06-02 |
+| D41 | Workspace Health score = (repos_not_critical / total_active) * 100; Missing repos excluded | CONTEXT.md definition | 2026-06-02 |
+| D42 | Health evaluated: on-demand + background poll (configurable interval) + post-scheduler-run; writes to health.json | File lock for concurrent access; atomic temp+rename | 2026-06-02 |
+| D43 | health.json as separate cache file; CLI reads cached data with "last evaluated" timestamp | Not in Config (computed state) | 2026-06-02 |
+| D44 | Change Dashboard = git2 Revwalk on HEAD default; "show all branches" toggle per repo; in-memory cache invalidated on fetch/pull | | 2026-06-02 |
+| D45 | Scheduler runs in GUI (tokio task) and CLI (self-daemonizing); lock ensures single instance; PID file | ADR-0008 | 2026-06-02 |
+| D46 | Scheduler triggers: simple (interval) + advanced (interval + time window + day constraints) | Stored in Config | 2026-06-02 |
+| D47 | Power-state aware scheduling: battery/sysinfo crate; battery-level threshold + AC-only toggle; graceful degradation | | 2026-06-02 |
+| D48 | Scheduler default action = system Macro `__scheduler_default` (fetch all); user can reassign | | 2026-06-02 |
+| D49 | Scheduler state (last_run, next_run) persisted in Config | | 2026-06-02 |
+| D50 | Notifications: OS-native toasts (tauri-plugin-notification) for critical + in-app panel for all | | 2026-06-02 |
+| D51 | Notification triggers configurable in Config; user picks severity threshold | Configurable from CLI and GUI | 2026-06-02 |
+| D52 | Notification dedup: aggregate ("3 repos critical" as single notification) | | 2026-06-02 |
+| D53 | Notifications stored in Config as bounded Vec with 7-day TTL auto-purge on load | Not a separate file; small volume | 2026-06-02 |
+| D54 | No Config schema bump for M5; #[serde(default)] for all new fields | D19 continues | 2026-06-02 |
+| D55 | M5 delivers core + CLI + GUI together (lesson from D23) | End-to-end features | 2026-06-02 |
+| D56 | CLI: `gitty health` (all repos + score), `gitty health --repo <id>` (drill-down) | | 2026-06-02 |
+| D57 | GUI scheduler = tokio task in setup(), loops 30s, checks should_run(), executes Macro, re-evaluates health, generates notifications | M5 Grilling Q1 | 2026-06-02 |
+| D58 | CLI scheduler = full fork/detach daemonization: `daemonize` crate (Unix), `DETACHED_PROCESS` (Windows) | M5 Grilling Q2+Q16; cross-platform | 2026-06-02 |
+| D59 | compute_next_run for Advanced mode respects window/day constraints; scans forward until valid slot (7-day cap) | M5 Grilling Q3 | 2026-06-02 |
+| D60 | Midnight-crossing time windows supported: if start > end, window wraps (current >= start OR current <= end) | M5 Grilling Q4 | 2026-06-02 |
+| D61 | SchedulerConfig uses proper types: OffsetDateTime for timestamps, Uuid for macro_id, NaiveTime/Weekday for Advanced trigger | M5 Grilling Q5 | 2026-06-02 |
+| D62 | Notification.timestamp uses OffsetDateTime, not String | M5 Grilling Q6 | 2026-06-02 |
+| D63 | HealthCheck::evaluate trait accepts `now: OffsetDateTime` parameter for deterministic testing | M5 Grilling Q7 | 2026-06-02 |
+| D64 | Changes page uses onMount (not $effect) for initial load; handlers drive subsequent loads | M5 Grilling Q8 | 2026-06-02 |
+| D65 | Per-repo "show all branches" toggle icon on Changes page | M5 Grilling Q9; GUI-CHANGE-04 | 2026-06-02 |
+| D66 | Settings scheduler section saves on change via set_scheduler_config (matches notification pattern) | M5 Grilling Q10 | 2026-06-02 |
+| D67 | Repository.display_name() method replaces 3 duplicate free functions | M5 Grilling Q11 | 2026-06-02 |
+| D68 | evaluate_workspace accepts HashMap<Uuid, RepositoryStatus> for O(1) lookup | M5 Grilling Q12 | 2026-06-02 |
+| D69 | Severity DTOs use serde serialization directly; manual severity_str() helpers removed | M5 Grilling Q13 | 2026-06-02 |
+| D70 | M5 complete = every acceptance criterion passes including battery detection and CLI daemonization | M5 Grilling Q14 | 2026-06-02 |
+| D71 | battery crate integrated for real hardware battery state detection in scheduler loop | M5 Grilling Q14+Q15 resolved | 2026-06-02 |
 
 ## Blockers
 
@@ -54,6 +88,7 @@ _None currently._
 - GitKraken CLI (Go) and Desktop (Electron) sync via cloud account, not local IPC. Our shared `gitty-core` crate approach is simpler for a local-first tool.
 - Svelte 5 runes (`$state`, `$derived`, `$effect`) with Tauri `invoke()` provide a clean data-flow model without stores.
 - Tauri 2 `#[tauri::command]` functions returning `Result<T, String>` is the simplest IPC pattern; typed DTO structs keep the frontend/backend contract explicit.
+- **Windows Smart App Control (SAC) blocks all unsigned executables**, including Rust build scripts. Developers must disable SAC to build from source. For end-user distribution, release binaries must be code-signed (SignPath.io, free for OSS). This is a pre-release blocker — tracked in Deferred Ideas.
 - **CRITICAL (2026-06-02): Agent skipped the entire Primary Workflow (grill → PRD → spec → design → tasks → issues → execute → review → close-out) for M2/M3/M4 and delegated to weaker-model subagents. Code produced without the workflow must be fully reviewed. Added hard-stop rules to AGENTS.md to prevent recurrence. ALWAYS follow the workflow. ALWAYS match the parent model tier for subagents.**
 
 ## Deferred Ideas
@@ -64,10 +99,11 @@ _None currently._
 | GitHub/GitLab API integration | Out of v1 scope | PROJECT.md |
 | Manual re-link resolution UI (for ambiguous fingerprint matches) | `foundation-discovery` auto-links only unambiguous matches | ADR-0005 |
 | Submodule-aware discovery (flag/filter submodules) | `foundation-discovery` treats nested repos generically | Grilling D1 |
-| Time-windowed Change Dashboard (24h/7d/30d, group by author/repo/branch) | Aggregate history — Milestone 5 | ROADMAP.md |
+| ~~Time-windowed Change Dashboard~~ | **Active scope — M5** | ROADMAP.md |
 | Macro JSON import/export | CLI defines steps inline; deferred file-based definition | M2/M4 |
 | ~~Tauri managed state~~ | **Decided (D36):** Managed state + file-watcher in ADR-0007 | M3 → Grilling |
 | Native file picker for Scan Root dialog | Using text input for now; `tauri-plugin-dialog` deferred | M3 |
+| Windows code signing via SignPath.io | Required for SAC/SmartScreen trust; apply at signpath.io/open-source (free for OSS). Sign release binaries in GitHub Actions CI. Without signing, Windows users with Smart App Control will be blocked from running gitty.exe. | M5 Grilling — SAC blocker |
 
 ## Preferences
 

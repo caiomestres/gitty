@@ -17,6 +17,22 @@ pub fn run() {
             let state = AppState::new(config, config_path);
             state.start_watcher(app.handle().clone());
             app.manage(state);
+
+            let config_dir = paths::config_dir().expect("failed to resolve config dir");
+            if !gitty_core::scheduler::daemon::is_already_running(&config_dir) {
+                let scheduler_dir = config_dir.clone();
+                std::thread::spawn(move || loop {
+                    gitty_core::scheduler::runner::tick(&scheduler_dir);
+                    std::thread::sleep(std::time::Duration::from_secs(30));
+                });
+            }
+
+            let poll_dir = paths::config_dir().expect("failed to resolve config dir");
+            std::thread::spawn(move || loop {
+                std::thread::sleep(std::time::Duration::from_secs(300));
+                gitty_core::scheduler::runner::health_poll(&poll_dir);
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -45,6 +61,16 @@ pub fn run() {
             commands::macros::define_macro,
             commands::macros::delete_macro,
             commands::macros::run_macro,
+            commands::health::get_workspace_health,
+            commands::health::get_repository_health,
+            commands::health::refresh_health,
+            commands::changes::get_changes,
+            commands::scheduler::get_scheduler_status,
+            commands::scheduler::set_scheduler_config,
+            commands::notifications::get_notifications,
+            commands::notifications::mark_notification_read,
+            commands::notifications::get_notification_config,
+            commands::notifications::set_notification_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
