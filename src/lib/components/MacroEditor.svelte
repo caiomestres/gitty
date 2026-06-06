@@ -27,6 +27,7 @@
       condition: null,
       rollback: null,
       confirm: false,
+      retry: null,
     };
   }
 
@@ -149,6 +150,39 @@
                         type: "git_op",
                         op: "checkout",
                         branch: (e.target as HTMLInputElement).value,
+                      };
+                      steps = [...steps];
+                    }
+                  }}
+                />
+              </label>
+            {/if}
+
+            <label class="field-checkbox">
+              <input
+                type="checkbox"
+                checked={!!step.retry}
+                onchange={() => {
+                  step.retry = step.retry ? null : { max_attempts: 3, backoff_seconds: 2 };
+                  steps = [...steps];
+                }}
+              />
+              Retry on network error
+            </label>
+            {#if step.retry}
+              <label class="field-label field-inline">
+                Max attempts
+                <input
+                  class="field-input"
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={step.retry.max_attempts}
+                  oninput={(e) => {
+                    if (step.retry) {
+                      step.retry = {
+                        ...step.retry,
+                        max_attempts: parseInt((e.target as HTMLInputElement).value) || 3,
                       };
                       steps = [...steps];
                     }
@@ -376,14 +410,14 @@
   }
 
   .builder-title {
-    font-size: 18px;
+    font-size: var(--text-lg);
     font-weight: 600;
     margin-bottom: var(--space-base);
   }
 
   .field-label {
     display: block;
-    font-size: 13px;
+    font-size: var(--text-caption);
     font-weight: 500;
     color: var(--color-muted);
     margin-bottom: var(--space-sm);
@@ -403,7 +437,7 @@
     border-radius: var(--radius-md);
     background: var(--color-canvas-soft);
     color: var(--color-ink);
-    font-size: 14px;
+    font-size: var(--text-body);
     box-sizing: border-box;
   }
 
@@ -416,7 +450,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-xs);
-    font-size: 13px;
+    font-size: var(--text-caption);
     color: var(--color-body);
     cursor: pointer;
   }
@@ -450,7 +484,7 @@
   }
 
   .step-number {
-    font-size: 12px;
+    font-size: var(--text-sm);
     font-weight: 600;
     color: var(--color-muted);
     min-width: 24px;
@@ -461,7 +495,7 @@
     border: 1px solid var(--color-hairline);
     border-radius: var(--radius-sm);
     background: var(--color-surface-card);
-    font-size: 13px;
+    font-size: var(--text-caption);
     color: var(--color-ink);
   }
 
@@ -498,7 +532,7 @@
   }
 
   .rollback-label {
-    font-size: 11px;
+    font-size: var(--text-xs);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;

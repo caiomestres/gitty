@@ -2,7 +2,7 @@ use anyhow::{bail, Context, Result};
 use gitty_core::config::Config;
 use gitty_core::git::write::{match_repo, GitBinary};
 use gitty_core::job::JobStatus;
-use gitty_core::macro_def::{GitOp, ShellStep, Step, StepKind};
+use gitty_core::macro_def::{GitOp, RetryConfig, ShellStep, Step, StepKind};
 use gitty_core::Selection;
 
 use super::resolve_group_id;
@@ -67,7 +67,12 @@ pub fn cmd_macro(action: MacroAction) -> Result<()> {
                     .map(|c| format!(" [if {c}]"))
                     .unwrap_or_default();
                 let confirm = if step.confirm { " (confirm)" } else { "" };
-                println!("  {}. {desc}{cond}{confirm}", i + 1);
+                let retry = step
+                    .retry
+                    .as_ref()
+                    .map(|r| format!(" [retry={}:backoff={}]", r.max_attempts, r.backoff_seconds))
+                    .unwrap_or_default();
+                println!("  {}. {desc}{cond}{retry}{confirm}", i + 1);
             }
         }
         MacroAction::Run {
@@ -136,19 +141,51 @@ pub fn cmd_macro(action: MacroAction) -> Result<()> {
 }
 
 fn parse_step_arg(arg: &str) -> Result<Step> {
-    let kind = if arg == "fetch" {
-        StepKind::GitOp(GitOp::Fetch)
-    } else if arg == "pull" {
-        StepKind::GitOp(GitOp::Pull)
-    } else if let Some(branch) = arg.strip_prefix("checkout:") {
-        StepKind::GitOp(GitOp::Checkout {
-            branch: branch.to_string(),
-        })
-    } else if let Some(cmd) = arg.strip_prefix("shell:") {
-        StepKind::Shell(ShellStep {
-            command: cmd.to_string(),
-            label: None,
-        })
+    let (kind, retry) = if arg == "fetch" || arg == "pull" {
+        let op = if arg == "fetch" {
+            GitOp::Fetch
+        } else {
+            GitOp::Pull
+        };
+        (StepKind::GitOp(op), None)
+    } else if let Some(rest) = arg.strip_prefix("fetch:") {
+        let (retry, _) = parse_retry_suffix(rest.split(':').collect())?;
+        (StepKind::GitOp(GitOp::Fetch), retry)
+    } else if let Some(rest) = arg.strip_prefix("pull:") {
+        let (retry, _) = parse_retry_suffix(rest.split(':').collect())?;
+        (StepKind::GitOp(GitOp::Pull), retry)
+    } else if let Some(rest) = arg.strip_prefix("checkout:") {
+        let parts: Vec<&str> = rest.split(':').collect();
+        if parts.is_empty() {
+            bail!("checkout requires a branch name");
+        }
+        let (retry, remaining) = parse_retry_suffix(parts)?;
+        if remaining.is_empty() {
+            bail!("checkout requires a branch name");
+        }
+        let branch = remaining[0].to_string();
+        (StepKind::GitOp(GitOp::Checkout { branch }), retry)
+    } else if let Some(rest) = arg.strip_prefix("shell:") {
+        let parts: Vec<&str> = rest.split(':').collect();
+        let (retry, remaining) = parse_retry_suffix(parts)?;
+        if let Some(retry_config) = retry {
+            eprintln!(
+                "warning: retry settings (max_attempts={}, backoff_seconds={}) are ignored for shell steps",
+                retry_config.max_attempts, retry_config.backoff_seconds
+            );
+        }
+        let command = if remaining.is_empty() {
+            bail!("shell requires a command");
+        } else {
+            remaining.join(":")
+        };
+        (
+            StepKind::Shell(ShellStep {
+                command,
+                label: None,
+            }),
+            None,
+        )
     } else {
         bail!("unrecognized step '{arg}'. Use: fetch, pull, checkout:<branch>, or shell:<command>");
     };
@@ -158,7 +195,42 @@ fn parse_step_arg(arg: &str) -> Result<Step> {
         condition: None,
         rollback: None,
         confirm: false,
+        retry,
     })
+}
+
+fn parse_retry_suffix(parts: Vec<&str>) -> Result<(Option<RetryConfig>, Vec<&str>)> {
+    let mut max_attempts = None;
+    let mut backoff_seconds = None;
+    let mut end = parts.len();
+
+    while end > 0 {
+        let part = parts[end - 1];
+        if let Some(value) = part.strip_prefix("retry=") {
+            max_attempts = Some(
+                value
+                    .parse::<u32>()
+                    .with_context(|| format!("invalid retry value '{value}'"))?,
+            );
+            end -= 1;
+        } else if let Some(value) = part.strip_prefix("backoff=") {
+            backoff_seconds = Some(
+                value
+                    .parse::<u64>()
+                    .with_context(|| format!("invalid backoff value '{value}'"))?,
+            );
+            end -= 1;
+        } else {
+            break;
+        }
+    }
+
+    let retry = max_attempts.map(|attempts| RetryConfig {
+        max_attempts: attempts,
+        backoff_seconds: backoff_seconds.unwrap_or(2),
+    });
+
+    Ok((retry, parts[..end].to_vec()))
 }
 
 fn format_step_kind(kind: &StepKind) -> String {
@@ -192,4 +264,57 @@ fn resolve_selection(
         return Ok(Selection::Tag(tag_name.to_string()));
     }
     Ok(Selection::All)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_fetch_with_retry() {
+        let step = parse_step_arg("fetch:retry=3").unwrap();
+        assert!(matches!(step.kind, StepKind::GitOp(GitOp::Fetch)));
+        let retry = step.retry.unwrap();
+        assert_eq!(retry.max_attempts, 3);
+        assert_eq!(retry.backoff_seconds, 2);
+    }
+
+    #[test]
+    fn parse_pull_with_retry_and_backoff() {
+        let step = parse_step_arg("pull:retry=3:backoff=5").unwrap();
+        assert!(matches!(step.kind, StepKind::GitOp(GitOp::Pull)));
+        let retry = step.retry.unwrap();
+        assert_eq!(retry.max_attempts, 3);
+        assert_eq!(retry.backoff_seconds, 5);
+    }
+
+    #[test]
+    fn parse_fetch_without_retry_is_backward_compatible() {
+        let step = parse_step_arg("fetch").unwrap();
+        assert!(matches!(step.kind, StepKind::GitOp(GitOp::Fetch)));
+        assert!(step.retry.is_none());
+    }
+
+    #[test]
+    fn parse_shell_ignores_retry_params() {
+        let step = parse_step_arg("shell:echo hello:retry=3").unwrap();
+        assert!(matches!(step.kind, StepKind::Shell(_)));
+        assert!(step.retry.is_none());
+        if let StepKind::Shell(shell) = step.kind {
+            assert_eq!(shell.command, "echo hello");
+        }
+    }
+
+    #[test]
+    fn format_step_kind_includes_retry_in_show_output() {
+        let step = parse_step_arg("fetch:retry=3").unwrap();
+        let desc = format_step_kind(&step.kind);
+        assert_eq!(desc, "git fetch --all");
+        let retry = step
+            .retry
+            .as_ref()
+            .map(|r| format!(" [retry={}:backoff={}]", r.max_attempts, r.backoff_seconds))
+            .unwrap_or_default();
+        assert_eq!(retry, " [retry=3:backoff=2]");
+    }
 }

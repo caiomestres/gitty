@@ -16,6 +16,17 @@ pub struct MacroDef {
     pub variables: HashMap<String, String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RetryConfig {
+    pub max_attempts: u32,
+    #[serde(default = "default_backoff")]
+    pub backoff_seconds: u64,
+}
+
+fn default_backoff() -> u64 {
+    2
+}
+
 /// A single unit of work inside a Macro.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Step {
@@ -27,6 +38,8 @@ pub struct Step {
     pub rollback: Option<Box<Step>>,
     #[serde(default)]
     pub confirm: bool,
+    #[serde(default)]
+    pub retry: Option<RetryConfig>,
 }
 
 /// Either a typed Git Operation or a Shell Command.
@@ -111,7 +124,42 @@ mod tests {
             condition: None,
             rollback: None,
             confirm: false,
+            retry: None,
         }
+    }
+
+    #[test]
+    fn step_serde_roundtrip_without_retry() {
+        let step = fetch_step();
+        let json = serde_json::to_string(&step).unwrap();
+        let back: Step = serde_json::from_str(&json).unwrap();
+        assert!(back.retry.is_none());
+        assert!(matches!(back.kind, StepKind::GitOp(GitOp::Fetch)));
+    }
+
+    #[test]
+    fn step_serde_roundtrip_with_retry() {
+        let step = Step {
+            kind: StepKind::GitOp(GitOp::Pull),
+            condition: None,
+            rollback: None,
+            confirm: false,
+            retry: Some(RetryConfig {
+                max_attempts: 3,
+                backoff_seconds: 2,
+            }),
+        };
+        let json = serde_json::to_string(&step).unwrap();
+        let back: Step = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.retry.as_ref().unwrap().max_attempts, 3);
+        assert_eq!(back.retry.as_ref().unwrap().backoff_seconds, 2);
+    }
+
+    #[test]
+    fn step_serde_backward_compat_omitted_retry() {
+        let json = r#"{"type":"git_op","op":"fetch"}"#;
+        let step: Step = serde_json::from_str(json).unwrap();
+        assert!(step.retry.is_none());
     }
 
     #[test]
