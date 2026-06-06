@@ -8,7 +8,7 @@
     JobDto,
     RepoDto,
   } from "$lib/types/workspace";
-  import { handleError } from "$lib/types/workspace";
+  import { handleError } from "$lib/utils/error-handling";
 
   interface Props {
     macro: MacroDto;
@@ -68,7 +68,7 @@
       onComplete(results);
     } catch (e) {
       const handled = handleError(e);
-      if (!handled.isTransient) {
+      if (handled) {
         onError(handled.message);
       }
     } finally {

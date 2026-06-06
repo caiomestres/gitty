@@ -113,18 +113,10 @@ fn step_dto_to_core(dto: StepDto) -> Result<Step, AppError> {
                 "fetch" => GitOp::Fetch,
                 "pull" => GitOp::Pull,
                 "checkout" => GitOp::Checkout {
-                    branch: branch.ok_or_else(|| AppError {
-                        code: "invalid_step".into(),
-                        message: "checkout step requires a branch".into(),
-                        hint: None,
-                    })?,
+                    branch: branch.ok_or_else(|| AppError::new("invalid_step", "checkout step requires a branch"))?,
                 },
                 other => {
-                    return Err(AppError {
-                        code: "invalid_step".into(),
-                        message: format!("unknown git operation: {other}"),
-                        hint: None,
-                    })
+                    return Err(AppError::new("invalid_step", format!("unknown git operation: {other}")))
                 }
             };
             StepKind::GitOp(git_op)

@@ -163,7 +163,7 @@ fn parse_step_arg(arg: &str) -> Result<Step> {
         if remaining.is_empty() {
             bail!("checkout requires a branch name");
         }
-        let branch = remaining[0].to_string();
+        let branch = remaining.join(":");
         (StepKind::GitOp(GitOp::Checkout { branch }), retry)
     } else if let Some(rest) = arg.strip_prefix("shell:") {
         let parts: Vec<&str> = rest.split(':').collect();
@@ -316,5 +316,27 @@ mod tests {
             .map(|r| format!(" [retry={}:backoff={}]", r.max_attempts, r.backoff_seconds))
             .unwrap_or_default();
         assert_eq!(retry, " [retry=3:backoff=2]");
+    }
+
+    #[test]
+    fn parse_checkout_with_colon_in_branch_name() {
+        let step = parse_step_arg("checkout:refs:heads/main:retry=2").unwrap();
+        if let StepKind::GitOp(GitOp::Checkout { branch }) = &step.kind {
+            assert_eq!(branch, "refs:heads/main");
+        } else {
+            panic!("expected checkout");
+        }
+        assert_eq!(step.retry.unwrap().max_attempts, 2);
+    }
+
+    #[test]
+    fn parse_shell_with_colons_in_command() {
+        let step = parse_step_arg("shell:docker run -p 8080:80 nginx:latest:retry=3").unwrap();
+        assert!(step.retry.is_none());
+        if let StepKind::Shell(shell) = step.kind {
+            assert_eq!(shell.command, "docker run -p 8080:80 nginx:latest");
+        } else {
+            panic!("expected shell");
+        }
     }
 }

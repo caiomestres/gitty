@@ -249,11 +249,7 @@ pub fn remove_scan_root(state: State<'_, AppState>, path: String) -> Result<(), 
             .scan_roots
             .retain(|sr| sr.path != path && sr.path != canonical);
         if config.workspace.scan_roots.len() == before {
-            return Err(AppError {
-                code: "not_found".into(),
-                message: format!("scan root not found: {path}"),
-                hint: None,
-            });
+            return Err(AppError::new("not_found", format!("scan root not found: {path}")));
         }
         Ok(())
     })
@@ -268,11 +264,7 @@ pub fn fetch_repo(state: State<'_, AppState>, repo_id: String) -> Result<OpResul
     let config = state.config();
     let repo = find_repo(&config, &repo_id)?;
     if repo.state == RepositoryState::Missing {
-        return Err(AppError {
-            code: "repository_missing".into(),
-            message: "repository path not found".into(),
-            hint: None,
-        });
+        return Err(AppError::new("repository_missing", "repository path not found"));
     }
     let git = GitBinary::resolve()?;
     let result = git.fetch(&repo.path)?;
@@ -284,11 +276,7 @@ pub fn pull_repo(state: State<'_, AppState>, repo_id: String) -> Result<OpResult
     let config = state.config();
     let repo = find_repo(&config, &repo_id)?;
     if repo.state == RepositoryState::Missing {
-        return Err(AppError {
-            code: "repository_missing".into(),
-            message: "repository path not found".into(),
-            hint: None,
-        });
+        return Err(AppError::new("repository_missing", "repository path not found"));
     }
     let git = GitBinary::resolve()?;
     let result = git.pull(&repo.path)?;
@@ -304,11 +292,7 @@ pub fn checkout_repo(
     let config = state.config();
     let repo = find_repo(&config, &repo_id)?;
     if repo.state == RepositoryState::Missing {
-        return Err(AppError {
-            code: "repository_missing".into(),
-            message: "repository path not found".into(),
-            hint: None,
-        });
+        return Err(AppError::new("repository_missing", "repository path not found"));
     }
     let git = GitBinary::resolve()?;
     let result = git.checkout(&repo.path, &branch)?;

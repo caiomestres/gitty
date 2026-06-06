@@ -3,16 +3,15 @@
   import { listen } from "@tauri-apps/api/event";
   import { SvelteSet } from "svelte/reactivity";
   import type { GroupDto, GroupTreeNodeDto } from "$lib/types/workspace";
-  import { handleError } from "$lib/types/workspace";
+  import { handleError, type HandledError } from "$lib/utils/error-handling";
+  import ErrorBanner from "$lib/components/ErrorBanner.svelte";
 
   let groups = $state<GroupDto[]>([]);
   let tree = $state<GroupTreeNodeDto[]>([]);
   let collapsed = new SvelteSet<string>();
   let loading = $state(true);
-  let error = $state<string | null>(null);
-  let errorHint = $state<string | undefined>(undefined);
-  let actionMessage = $state<string | null>(null);
-  let actionHint = $state<string | undefined>(undefined);
+  let pageError = $state<HandledError | null>(null);
+  let actionFeedback = $state<HandledError | null>(null);
 
   let showCreateDialog = $state(false);
   let createName = $state("");
@@ -42,19 +41,14 @@
 
   async function loadGroups() {
     loading = true;
-    error = null;
-    errorHint = undefined;
+    pageError = null;
     try {
       [groups, tree] = await Promise.all([
         invoke<GroupDto[]>("list_groups"),
         invoke<GroupTreeNodeDto[]>("group_tree"),
       ]);
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        error = handled.message;
-        errorHint = handled.hint;
-      }
+      pageError = handleError(e);
     } finally {
       loading = false;
     }
@@ -75,24 +69,19 @@
   async function handleCreate() {
     if (!createName.trim()) return;
     creating = true;
-    actionMessage = null;
-    actionHint = undefined;
+    actionFeedback = null;
     try {
       await invoke("create_group", {
         name: createName.trim(),
         parentId: createParentId,
       });
-      actionMessage = `Created group "${createName.trim()}"`;
+      actionFeedback = { message: `Created group "${createName.trim()}"` };
       showCreateDialog = false;
       createName = "";
       createParentId = null;
       await loadGroups();
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        actionMessage = handled.message;
-        actionHint = handled.hint;
-      }
+      actionFeedback = handleError(e);
     } finally {
       creating = false;
     }
@@ -106,19 +95,14 @@
 
   async function handleRename() {
     if (!renameName.trim()) return;
-    actionMessage = null;
-    actionHint = undefined;
+    actionFeedback = null;
     try {
       await invoke("rename_group", { id: renameId, newName: renameName.trim() });
-      actionMessage = `Renamed group to "${renameName.trim()}"`;
+      actionFeedback = { message: `Renamed group to "${renameName.trim()}"` };
       showRenameDialog = false;
       await loadGroups();
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        actionMessage = handled.message;
-        actionHint = handled.hint;
-      }
+      actionFeedback = handleError(e);
     }
   }
 
@@ -129,19 +113,14 @@
   }
 
   async function handleDelete() {
-    actionMessage = null;
-    actionHint = undefined;
+    actionFeedback = null;
     try {
       await invoke("delete_group", { id: deleteId });
-      actionMessage = `Deleted group "${deleteName}"`;
+      actionFeedback = { message: `Deleted group "${deleteName}"` };
       showDeleteDialog = false;
       await loadGroups();
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        actionMessage = handled.message;
-        actionHint = handled.hint;
-      }
+      actionFeedback = handleError(e);
     }
   }
 
@@ -152,19 +131,14 @@
   }
 
   async function handleMove() {
-    actionMessage = null;
-    actionHint = undefined;
+    actionFeedback = null;
     try {
       await invoke("move_group", { id: moveId, newParentId: moveParentId || null });
-      actionMessage = "Group moved successfully";
+      actionFeedback = { message: "Group moved successfully" };
       showMoveDialog = false;
       await loadGroups();
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        actionMessage = handled.message;
-        actionHint = handled.hint;
-      }
+      actionFeedback = handleError(e);
     }
   }
 </script>
@@ -224,22 +198,15 @@
     </button>
   </header>
 
-  {#if actionMessage}
-    <div class="action-banner" role="status">
-      {actionMessage}
-      {#if actionHint}
-        <p class="error-hint">{actionHint}</p>
-      {/if}
-    </div>
-  {/if}
+  <ErrorBanner error={actionFeedback} />
 
   {#if loading}
     <div class="empty-state">Loading groups…</div>
-  {:else if error}
+  {:else if pageError}
     <div class="empty-state error">
-      {error}
-      {#if errorHint}
-        <p class="error-hint">{errorHint}</p>
+      {pageError.message}
+      {#if pageError.hint}
+        <p class="error-hint">{pageError.hint}</p>
       {/if}
     </div>
   {:else if tree.length === 0}

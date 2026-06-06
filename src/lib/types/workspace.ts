@@ -1,5 +1,3 @@
-import { addToast } from "$lib/stores/toast.svelte";
-
 export interface RepoDto {
   id: string;
   path: string;
@@ -123,43 +121,4 @@ export interface StepResultDto {
   step_index: number;
   status: string;
   output: string | null;
-}
-
-export function errorMessage(err: unknown): string {
-  if (typeof err === "string") return err;
-  if (err && typeof err === "object" && "message" in err) return (err as ErrorDto).message;
-  return String(err);
-}
-
-export interface HandledError {
-  message: string;
-  hint?: string;
-  isTransient: boolean;
-}
-
-export function handleError(err: unknown): HandledError {
-  let message: string;
-  let hint: string | undefined;
-  let code = "unknown";
-
-  if (typeof err === "string") {
-    message = err;
-  } else if (err && typeof err === "object") {
-    const e = err as Record<string, unknown>;
-    message = (e.message as string) ?? String(err);
-    hint = e.hint as string | undefined;
-    code = (e.code as string) ?? "unknown";
-  } else {
-    message = String(err);
-  }
-
-  const isTransient =
-    code === "lock_contention" ||
-    (code === "git_error" && message.toLowerCase().includes("network"));
-
-  if (isTransient) {
-    addToast({ message, hint, severity: "error", dismissAfterMs: 5000 });
-  }
-
-  return { message, hint, isTransient };
 }

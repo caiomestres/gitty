@@ -5,7 +5,20 @@ use serde::Serialize;
 pub struct AppError {
     pub code: String,
     pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub hint: Option<String>,
+    pub transient: bool,
+}
+
+impl AppError {
+    pub fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            code: code.into(),
+            message: message.into(),
+            hint: None,
+            transient: false,
+        }
+    }
 }
 
 impl std::fmt::Display for AppError {
@@ -42,9 +55,14 @@ fn hint_for_core_error(e: &CoreError) -> Option<String> {
     }
 }
 
+fn is_transient(e: &CoreError) -> bool {
+    matches!(e, CoreError::LockContention { .. })
+}
+
 impl From<CoreError> for AppError {
     fn from(e: CoreError) -> Self {
         let hint = hint_for_core_error(&e);
+        let transient = is_transient(&e);
         let code = match &e {
             CoreError::GroupNotFound(_) => "group_not_found",
             CoreError::RepositoryNotFound(_) => "repository_not_found",
@@ -67,6 +85,7 @@ impl From<CoreError> for AppError {
             code: code.to_string(),
             message: e.to_string(),
             hint,
+            transient,
         }
     }
 }
@@ -77,6 +96,7 @@ impl From<String> for AppError {
             code: "unknown".to_string(),
             message: s,
             hint: None,
+            transient: false,
         }
     }
 }
@@ -155,7 +175,7 @@ mod tests {
     }
 
     #[test]
-    fn lock_contention_hint() {
+    fn lock_contention_hint_and_transient() {
         let err = AppError::from(CoreError::LockContention {
             repo_id: Uuid::nil(),
             pid: 1234,
@@ -165,6 +185,7 @@ mod tests {
             err.hint.as_deref(),
             Some("Another process is using this Repository. Wait for it to finish or check for stale locks.")
         );
+        assert!(err.transient);
     }
 
     #[test]

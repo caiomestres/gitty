@@ -8,18 +8,17 @@
     RepoWithStatus,
     TagDto,
   } from "$lib/types/workspace";
-  import { handleError } from "$lib/types/workspace";
+  import { handleError, type HandledError } from "$lib/utils/error-handling";
+  import ErrorBanner from "$lib/components/ErrorBanner.svelte";
 
   let repos = $state<RepoWithStatus[]>([]);
   let loading = $state(true);
-  let error = $state<string | null>(null);
-  let errorHint = $state<string | undefined>(undefined);
+  let pageError = $state<HandledError | null>(null);
   let showScanDialog = $state(false);
   let scanPath = $state("");
   let scanning = $state(false);
   let fetchingAll = $state(false);
-  let actionMessage = $state<string | null>(null);
-  let actionHint = $state<string | undefined>(undefined);
+  let actionFeedback = $state<HandledError | null>(null);
 
   // Tag filter
   let allTags = $state<TagDto[]>([]);
@@ -39,19 +38,14 @@
 
   async function loadWorkspace() {
     loading = true;
-    error = null;
-    errorHint = undefined;
+    pageError = null;
     try {
       const list = await invoke<RepoDto[]>("list_repositories");
       repos = list.map((r) => ({ ...r, statusLoading: r.state === "active" }));
       allTags = await invoke<TagDto[]>("list_tags");
       await loadStatuses();
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        error = handled.message;
-        errorHint = handled.hint;
-      }
+      pageError = handleError(e);
     } finally {
       loading = false;
     }
@@ -74,22 +68,17 @@
   async function handleScan() {
     if (!scanPath.trim()) return;
     scanning = true;
-    actionMessage = null;
-    actionHint = undefined;
+    actionFeedback = null;
     try {
       const result = await invoke<{ new: number; found: number }>("scan_directory", {
         path: scanPath.trim(),
       });
-      actionMessage = `Scan complete: ${result.found} found, ${result.new} new`;
+      actionFeedback = { message: `Scan complete: ${result.found} found, ${result.new} new` };
       showScanDialog = false;
       scanPath = "";
       await loadWorkspace();
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        actionMessage = handled.message;
-        actionHint = handled.hint;
-      }
+      actionFeedback = handleError(e);
     } finally {
       scanning = false;
     }
@@ -97,18 +86,15 @@
 
   async function handleFetchAll() {
     fetchingAll = true;
-    actionMessage = null;
-    actionHint = undefined;
+    actionFeedback = null;
     try {
       const result = await invoke<BulkResultDto>("fetch_all");
-      actionMessage = `Fetch all: ${result.success_count} succeeded, ${result.failed_count} failed, ${result.skipped_count} skipped`;
+      actionFeedback = {
+        message: `Fetch all: ${result.success_count} succeeded, ${result.failed_count} failed, ${result.skipped_count} skipped`,
+      };
       await loadStatuses();
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        actionMessage = handled.message;
-        actionHint = handled.hint;
-      }
+      actionFeedback = handleError(e);
     } finally {
       fetchingAll = false;
     }
@@ -120,11 +106,7 @@
       const status = await invoke<RepoStatusDto>("get_repo_status", { repoId });
       repos = repos.map((r) => (r.id === repoId ? { ...r, status } : r));
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        actionMessage = handled.message;
-        actionHint = handled.hint;
-      }
+      actionFeedback = handleError(e);
     }
   }
 
@@ -134,11 +116,7 @@
       const status = await invoke<RepoStatusDto>("get_repo_status", { repoId });
       repos = repos.map((r) => (r.id === repoId ? { ...r, status } : r));
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        actionMessage = handled.message;
-        actionHint = handled.hint;
-      }
+      actionFeedback = handleError(e);
     }
   }
 
@@ -180,14 +158,7 @@
     </div>
   </header>
 
-  {#if actionMessage}
-    <div class="action-banner" role="status">
-      {actionMessage}
-      {#if actionHint}
-        <p class="error-hint">{actionHint}</p>
-      {/if}
-    </div>
-  {/if}
+  <ErrorBanner error={actionFeedback} />
 
   <section class="stats-bar" aria-label="Workspace statistics">
     <div class="stat-card">
@@ -210,11 +181,11 @@
 
   {#if loading}
     <div class="empty-state">Loading repositories…</div>
-  {:else if error}
+  {:else if pageError}
     <div class="empty-state error">
-      {error}
-      {#if errorHint}
-        <p class="error-hint">{errorHint}</p>
+      {pageError.message}
+      {#if pageError.hint}
+        <p class="error-hint">{pageError.hint}</p>
       {/if}
     </div>
   {:else if repos.length === 0}

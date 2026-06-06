@@ -138,6 +138,9 @@ fn execute_git_op_with_retry(
     })
 }
 
+/// Retries only on network errors with exponential backoff.
+/// NOTE: Uses blocking sleep (up to 60s). Callers on async runtimes should
+/// invoke this within spawn_blocking or a dedicated thread pool.
 fn run_with_retry<F>(retry_config: &RetryConfig, mut attempt_fn: F) -> StepResult
 where
     F: FnMut() -> (StepResult, Option<ErrorCategory>),

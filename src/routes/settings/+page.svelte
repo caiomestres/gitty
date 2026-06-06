@@ -5,49 +5,18 @@
   import type { NotificationConfigDto } from "$lib/types/notifications";
   import { getNotificationConfig, setNotificationConfig } from "$lib/types/notifications";
   import type { MacroDto } from "$lib/types/workspace";
-  import { handleError } from "$lib/types/workspace";
-
-  type SchedulerMode = "simple" | "advanced";
-
-  interface TimeOfDay {
-    hour: number;
-    minute: number;
-  }
-
-  interface SchedulerConfigDto {
-    enabled: boolean;
-    macro_id: string | null;
-    trigger:
-      | { mode: "simple"; interval_minutes: number }
-      | {
-          mode: "advanced";
-          interval_minutes: number;
-          window_start: TimeOfDay;
-          window_end: TimeOfDay;
-          days: string[];
-        };
-    power: { pause_on_battery: boolean; battery_threshold: number };
-  }
-
-  const DAY_OPTIONS = [
-    { key: "mon", label: "Mon" },
-    { key: "tue", label: "Tue" },
-    { key: "wed", label: "Wed" },
-    { key: "thu", label: "Thu" },
-    { key: "fri", label: "Fri" },
-    { key: "sat", label: "Sat" },
-    { key: "sun", label: "Sun" },
-  ] as const;
+  import { handleError, type HandledError } from "$lib/utils/error-handling";
+  import ErrorBanner from "$lib/components/ErrorBanner.svelte";
+  import type { SchedulerConfigDto, SchedulerMode, TimeOfDay } from "$lib/types/scheduler";
+  import { DAY_OPTIONS, parseTime, formatTime } from "$lib/types/scheduler";
 
   let scanRoots = $state<string[]>([]);
   let loading = $state(true);
-  let error = $state<string | null>(null);
-  let errorHint = $state<string | undefined>(undefined);
+  let pageError = $state<HandledError | null>(null);
   let showAddDialog = $state(false);
   let newPath = $state("");
   let scanning = $state(false);
-  let actionMessage = $state<string | null>(null);
-  let actionHint = $state<string | undefined>(undefined);
+  let actionFeedback = $state<HandledError | null>(null);
 
   // Scheduler state
   let schedulerEnabled = $state(false);
@@ -73,19 +42,6 @@
   let notifTrigger = $state<NotificationConfigDto["trigger"]>("on_critical");
   let notifPollingMinutes = $state<number | null>(5);
   let notifLoading = $state(true);
-
-  function parseTime(value: string): TimeOfDay | null {
-    const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
-    if (!match) return null;
-    const hour = Number(match[1]);
-    const minute = Number(match[2]);
-    if (hour > 23 || minute > 59) return null;
-    return { hour, minute };
-  }
-
-  function formatTime(t: TimeOfDay): string {
-    return `${String(t.hour).padStart(2, "0")}:${String(t.minute).padStart(2, "0")}`;
-  }
 
   function applySchedulerConfig(config: SchedulerConfigDto) {
     schedulerEnabled = config.enabled;
@@ -162,13 +118,9 @@
           macro_id: macroId,
         },
       });
-      actionMessage = "Scheduler settings saved";
+      actionFeedback = { message: "Scheduler settings saved" };
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        actionMessage = handled.message;
-        actionHint = handled.hint;
-      }
+      actionFeedback = handleError(e);
     }
   }
 
@@ -200,13 +152,9 @@
         trigger: notifTrigger,
         polling_interval_minutes: notifPollingMinutes,
       });
-      actionMessage = "Notification settings saved";
+      actionFeedback = { message: "Notification settings saved" };
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        actionMessage = handled.message;
-        actionHint = handled.hint;
-      }
+      actionFeedback = handleError(e);
     }
   }
 
@@ -231,16 +179,11 @@
 
   async function loadScanRoots() {
     loading = true;
-    error = null;
-    errorHint = undefined;
+    pageError = null;
     try {
       scanRoots = await invoke<string[]>("list_scan_roots");
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        error = handled.message;
-        errorHint = handled.hint;
-      }
+      pageError = handleError(e);
     } finally {
       loading = false;
     }
@@ -249,55 +192,40 @@
   async function handleAdd() {
     if (!newPath.trim()) return;
     scanning = true;
-    actionMessage = null;
-    actionHint = undefined;
+    actionFeedback = null;
     try {
       const result = await invoke<{ found: number; new: number }>("scan_directory", {
         path: newPath.trim(),
       });
-      actionMessage = `Scan complete: ${result.found} found, ${result.new} new`;
+      actionFeedback = { message: `Scan complete: ${result.found} found, ${result.new} new` };
       showAddDialog = false;
       newPath = "";
       await loadScanRoots();
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        actionMessage = handled.message;
-        actionHint = handled.hint;
-      }
+      actionFeedback = handleError(e);
     } finally {
       scanning = false;
     }
   }
 
   async function handleRemove(path: string) {
-    actionMessage = null;
-    actionHint = undefined;
+    actionFeedback = null;
     try {
       await invoke("remove_scan_root", { path });
-      actionMessage = `Removed scan root: ${path}`;
+      actionFeedback = { message: `Removed scan root: ${path}` };
       await loadScanRoots();
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        actionMessage = handled.message;
-        actionHint = handled.hint;
-      }
+      actionFeedback = handleError(e);
     }
   }
 
   async function handleRescan(path: string) {
-    actionMessage = null;
-    actionHint = undefined;
+    actionFeedback = null;
     try {
       const result = await invoke<{ found: number; new: number }>("scan_directory", { path });
-      actionMessage = `Rescanned ${path}: ${result.found} found, ${result.new} new`;
+      actionFeedback = { message: `Rescanned ${path}: ${result.found} found, ${result.new} new` };
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        actionMessage = handled.message;
-        actionHint = handled.hint;
-      }
+      actionFeedback = handleError(e);
     }
   }
 </script>
@@ -310,14 +238,7 @@
     </div>
   </header>
 
-  {#if actionMessage}
-    <div class="action-banner" role="status">
-      {actionMessage}
-      {#if actionHint}
-        <p class="error-hint">{actionHint}</p>
-      {/if}
-    </div>
-  {/if}
+  <ErrorBanner error={actionFeedback} />
 
   <section class="settings-section">
     <div class="section-header">
@@ -334,11 +255,11 @@
 
     {#if loading}
       <div class="empty-state">Loading…</div>
-    {:else if error}
+    {:else if pageError}
       <div class="empty-state error">
-        {error}
-        {#if errorHint}
-          <p class="error-hint">{errorHint}</p>
+        {pageError.message}
+        {#if pageError.hint}
+          <p class="error-hint">{pageError.hint}</p>
         {/if}
       </div>
     {:else if scanRoots.length === 0}

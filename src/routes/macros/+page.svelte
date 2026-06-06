@@ -5,12 +5,13 @@
   import MacroEditor from "$lib/components/MacroEditor.svelte";
   import MacroRunner from "$lib/components/MacroRunner.svelte";
   import type { MacroDto, StepDto, JobDto } from "$lib/types/workspace";
-  import { handleError } from "$lib/types/workspace";
+  import { handleError, type HandledError } from "$lib/utils/error-handling";
+  import ErrorBanner from "$lib/components/ErrorBanner.svelte";
 
   let macros = $state<MacroDto[]>([]);
   let loading = $state(true);
-  let error = $state<string | null>(null);
-  let actionMessage = $state<string | null>(null);
+  let pageError = $state<HandledError | null>(null);
+  let actionFeedback = $state<HandledError | null>(null);
 
   // Builder state
   let showBuilder = $state(false);
@@ -43,14 +44,11 @@
 
   async function loadMacros() {
     loading = true;
-    error = null;
+    pageError = null;
     try {
       macros = await invoke<MacroDto[]>("list_macros");
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        error = handled.message;
-      }
+      pageError = handleError(e);
     } finally {
       loading = false;
     }
@@ -77,7 +75,7 @@
   async function handleSave() {
     if (!builderName.trim() || builderSteps.length === 0) return;
     saving = true;
-    actionMessage = null;
+    actionFeedback = null;
     try {
       if (editingId) {
         await invoke("delete_macro", { id: editingId });
@@ -91,14 +89,11 @@
         steps: builderSteps,
         variables,
       });
-      actionMessage = editingId ? "Macro updated" : "Macro created";
+      actionFeedback = { message: editingId ? "Macro updated" : "Macro created" };
       showBuilder = false;
       await loadMacros();
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        actionMessage = handled.message;
-      }
+      actionFeedback = handleError(e);
     } finally {
       saving = false;
     }
@@ -111,18 +106,15 @@
 
   async function handleDelete() {
     if (!deleteTarget) return;
-    actionMessage = null;
+    actionFeedback = null;
     try {
       await invoke("delete_macro", { id: deleteTarget.id });
-      actionMessage = `Deleted macro "${deleteTarget.name}"`;
+      actionFeedback = { message: `Deleted macro "${deleteTarget.name}"` };
       showDeleteDialog = false;
       deleteTarget = null;
       await loadMacros();
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        actionMessage = handled.message;
-      }
+      actionFeedback = handleError(e);
     }
   }
 
@@ -141,9 +133,7 @@
     <button class="btn-primary" type="button" onclick={openNewBuilder}>New Macro</button>
   </header>
 
-  {#if actionMessage}
-    <div class="action-banner" role="status">{actionMessage}</div>
-  {/if}
+  <ErrorBanner error={actionFeedback} />
 
   {#if showResults && results.length > 0}
     <JobResults jobs={results} onDismiss={() => (showResults = false)} />
@@ -151,8 +141,8 @@
 
   {#if loading}
     <div class="empty-state">Loading macros…</div>
-  {:else if error}
-    <div class="empty-state error">{error}</div>
+  {:else if pageError}
+    <div class="empty-state error">{pageError.message}</div>
   {:else if showBuilder}
     <MacroEditor
       {editingId}
@@ -239,7 +229,7 @@
     }}
     onCancel={() => (showRunDialog = false)}
     onError={(msg) => {
-      actionMessage = msg;
+      actionFeedback = { message: msg };
     }}
   />
 {/if}

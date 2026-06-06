@@ -3,13 +3,12 @@
   import { getWorkspaceHealth, getRepositoryHealth, refreshHealth } from "$lib/types/health";
   import { onMount } from "svelte";
   import { resolve } from "$app/paths";
-  import { handleError } from "$lib/types/workspace";
+  import { handleError, type HandledError } from "$lib/utils/error-handling";
 
   let health = $state<WorkspaceHealthDto | null>(null);
   let loading = $state(true);
   let refreshing = $state(false);
-  let error = $state<string | null>(null);
-  let errorHint = $state<string | undefined>(undefined);
+  let pageError = $state<HandledError | null>(null);
   let expandedRepo = $state<string | null>(null);
   let repoDetail = $state<RepositoryHealthDto | null>(null);
   let detailLoading = $state(false);
@@ -20,16 +19,11 @@
 
   async function loadHealth() {
     loading = true;
-    error = null;
-    errorHint = undefined;
+    pageError = null;
     try {
       health = await getWorkspaceHealth();
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        error = handled.message;
-        errorHint = handled.hint;
-      }
+      pageError = handleError(e);
     } finally {
       loading = false;
     }
@@ -37,16 +31,11 @@
 
   async function handleRefresh() {
     refreshing = true;
-    error = null;
-    errorHint = undefined;
+    pageError = null;
     try {
       health = await refreshHealth();
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        error = handled.message;
-        errorHint = handled.hint;
-      }
+      pageError = handleError(e);
     } finally {
       refreshing = false;
     }
@@ -96,11 +85,11 @@
 
   {#if loading}
     <div class="empty-state">Evaluating workspace health…</div>
-  {:else if error}
+  {:else if pageError}
     <div class="empty-state error">
-      {error}
-      {#if errorHint}
-        <p class="error-hint">{errorHint}</p>
+      {pageError.message}
+      {#if pageError.hint}
+        <p class="error-hint">{pageError.hint}</p>
       {/if}
     </div>
   {:else if health}

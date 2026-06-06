@@ -122,22 +122,13 @@
 
   <div class="tree-section">
     <span class="tree-heading">Explorer</span>
-    {#if tree.length === 0}
+    {#if tree.length === 0 || !anyRepos}
       <div class="tree-empty-state">
         <p>No repositories. Scan a directory to get started.</p>
         <a href={resolve("/settings")} class="tree-empty-link">Go to Settings</a>
       </div>
-    {:else if !anyRepos}
-      <div class="tree-empty-state">
-        <p>No repositories. Scan a directory to get started.</p>
-        <a href={resolve("/settings")} class="tree-empty-link">Go to Settings</a>
-      </div>
-      <div class="tree-root">
-        {#each tree as node (node.group.id)}
-          {@render treeNode(node, 0)}
-        {/each}
-      </div>
-    {:else}
+    {/if}
+    {#if tree.length > 0}
       <div class="tree-root">
         {#each tree as node (node.group.id)}
           {@render treeNode(node, 0)}

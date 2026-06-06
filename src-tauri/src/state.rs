@@ -28,11 +28,7 @@ impl AppState {
         self.config_path
             .parent()
             .map(|p| p.to_path_buf())
-            .ok_or_else(|| AppError {
-                code: "config_error".into(),
-                message: "config path has no parent directory".into(),
-                hint: None,
-            })
+            .ok_or_else(|| AppError::new("config_error", "config path has no parent directory"))
     }
 
     pub fn reload(&self) -> Result<(), AppError> {

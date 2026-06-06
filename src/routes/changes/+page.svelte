@@ -1,14 +1,13 @@
 <script lang="ts">
   import type { GroupedChangesDto, TimeWindow, Grouping } from "$lib/types/changes";
   import { getChanges } from "$lib/types/changes";
-  import { handleError } from "$lib/types/workspace";
+  import { handleError, type HandledError } from "$lib/utils/error-handling";
   import { onMount } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
 
   let data = $state<GroupedChangesDto | null>(null);
   let loading = $state(true);
-  let error = $state<string | null>(null);
-  let errorHint = $state<string | undefined>(undefined);
+  let pageError = $state<HandledError | null>(null);
   let window = $state<TimeWindow>("week");
   let grouping = $state<Grouping>("repository");
   let allBranchesRepos = new SvelteSet<string>();
@@ -19,16 +18,11 @@
 
   async function loadChanges() {
     loading = true;
-    error = null;
-    errorHint = undefined;
+    pageError = null;
     try {
       data = await getChanges(window, grouping, [...allBranchesRepos]);
     } catch (e) {
-      const handled = handleError(e);
-      if (!handled.isTransient) {
-        error = handled.message;
-        errorHint = handled.hint;
-      }
+      pageError = handleError(e);
     } finally {
       loading = false;
     }
@@ -134,11 +128,11 @@
 
   {#if loading}
     <div class="empty-state">Scanning commits…</div>
-  {:else if error}
+  {:else if pageError}
     <div class="empty-state error">
-      {error}
-      {#if errorHint}
-        <p class="error-hint">{errorHint}</p>
+      {pageError.message}
+      {#if pageError.hint}
+        <p class="error-hint">{pageError.hint}</p>
       {/if}
     </div>
   {:else if !data || data.groups.length === 0}
