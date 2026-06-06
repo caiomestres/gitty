@@ -1,0 +1,50 @@
+site_name: Gitty
+site_description: Workspace synchronization and orchestration for Git repositories
+repo_url: https://github.com/caiomestres/gitty
+repo_name: caiomestres/gitty
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: custom
+      accent: orange
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: custom
+      accent: orange
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+
+extra:
+  css:
+    - stylesheets/extra.css
+
+nav:
+  - Getting Started: index.md
+  - Concepts: concepts.md
+  - CLI Reference: cli-reference.md
+  - GUI Guide: gui-guide.md
+
+exclude_docs: |
+  adr/
+  agents/
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - toc:
+      permalink: true
