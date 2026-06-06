@@ -29,10 +29,7 @@ pub fn cmd_health(target: Option<&str>) -> Result<()> {
         let rh = health::evaluate_repository(repo, &status, thresholds, now);
         let name = repo.display_name();
         println!("Repository: {name}");
-        println!(
-            "  Worst severity: {}",
-            severity_label(rh.worst_severity)
-        );
+        println!("  Worst severity: {}", severity_label(rh.worst_severity));
         for check in &rh.checks {
             println!(
                 "  [{}] {} — {}",

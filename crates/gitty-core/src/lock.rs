@@ -173,5 +173,4 @@ mod tests {
         // Second release attempt via another acquire should succeed.
         let _lock2 = RepoLock::acquire_in(id, dir.path()).unwrap();
     }
-
 }

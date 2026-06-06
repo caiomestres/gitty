@@ -38,10 +38,7 @@ pub fn cmd_notification(action: NotificationAction) -> Result<()> {
                 println!("Polling interval:     {interval} minutes");
             }
             let history = gitty_core::notification::load_history(&config_dir);
-            println!(
-                "History:              {} notifications",
-                history.len()
-            );
+            println!("History:              {} notifications", history.len());
         }
         NotificationAction::Set { mode } => {
             let trigger = parse_trigger(&mode).ok_or_else(|| {

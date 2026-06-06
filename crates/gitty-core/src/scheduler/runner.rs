@@ -24,6 +24,7 @@ fn default_fetch_macro() -> MacroDef {
             condition: None,
             rollback: None,
             confirm: false,
+            retry: None,
         }],
         variables: Default::default(),
     }
