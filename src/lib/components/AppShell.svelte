@@ -4,6 +4,7 @@
   import StatusBar from "./StatusBar.svelte";
   import BottomBar from "./BottomBar.svelte";
   import NotificationPanel from "./NotificationPanel.svelte";
+  import ToastContainer from "./ToastContainer.svelte";
 
   interface Props {
     children: Snippet;
@@ -26,6 +27,7 @@
     </main>
   </div>
   <BottomBar />
+  <ToastContainer />
 </div>
 
 <style>
