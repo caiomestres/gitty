@@ -26,5 +26,8 @@ vite.config.ts.timestamp-*
 *.swp
 *.swo
 
+# MkDocs build output
+/site
+
 # codenavi skill knowledge base
 .notebook/
