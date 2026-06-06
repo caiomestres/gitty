@@ -16,6 +16,11 @@ pub struct SchedulerStatusDto {
 }
 
 #[tauri::command]
+pub fn get_scheduler_config(state: State<'_, AppState>) -> Result<SchedulerConfig, AppError> {
+    Ok(state.config().scheduler.clone())
+}
+
+#[tauri::command]
 pub fn get_scheduler_status(state: State<'_, AppState>) -> Result<SchedulerStatusDto, AppError> {
     let config = state.config();
     let config_dir = gitty_core::config::paths::config_dir()?;

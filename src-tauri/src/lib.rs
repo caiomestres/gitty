@@ -81,6 +81,7 @@ pub fn run() {
             commands::health::get_repository_health,
             commands::health::refresh_health,
             commands::changes::get_changes,
+            commands::scheduler::get_scheduler_config,
             commands::scheduler::get_scheduler_status,
             commands::scheduler::set_scheduler_config,
             commands::notifications::get_notifications,

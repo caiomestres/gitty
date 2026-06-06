@@ -65,7 +65,11 @@ fn to_workspace_dto(
         critical_count: wh.critical_count,
         warning_count: wh.warning_count,
         healthy_count: wh.healthy_count,
-        repositories: wh.repositories.iter().map(RepositoryHealthDto::from).collect(),
+        repositories: wh
+            .repositories
+            .iter()
+            .map(RepositoryHealthDto::from)
+            .collect(),
         last_evaluated,
     }
 }

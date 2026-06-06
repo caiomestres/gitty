@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use gitty_core::git::read;
+use gitty_core::git::read::{self, ChangeStatus};
 use gitty_core::git::write::{BatchOp, GitBinary, GitResult, RepoOutcome};
 use gitty_core::repository::RepositoryState;
 use gitty_core::scan_and_reconcile;
@@ -14,6 +14,12 @@ use crate::state::AppState;
 use super::{find_repo, repo_to_dto, RepoDto};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChangedFileDto {
+    path: String,
+    status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RepoStatusDto {
     id: String,
     branch: Option<String>,
@@ -24,6 +30,17 @@ pub struct RepoStatusDto {
     head_summary: Option<String>,
     head_short_id: Option<String>,
     changed_files_count: usize,
+    changed_files: Vec<ChangedFileDto>,
+}
+
+fn change_status_label(status: ChangeStatus) -> &'static str {
+    match status {
+        ChangeStatus::Added => "added",
+        ChangeStatus::Modified => "modified",
+        ChangeStatus::Deleted => "deleted",
+        ChangeStatus::Renamed => "renamed",
+        ChangeStatus::Untracked => "untracked",
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -165,6 +182,7 @@ pub fn get_repo_status(
             head_summary: None,
             head_short_id: None,
             changed_files_count: 0,
+            changed_files: vec![],
         });
     }
 
@@ -174,6 +192,15 @@ pub fn get_repo_status(
         .as_ref()
         .map(|u| (u.ahead as u32, u.behind as u32))
         .unwrap_or((0, 0));
+
+    let changed_files = status
+        .changed_files
+        .iter()
+        .map(|f| ChangedFileDto {
+            path: f.path.clone(),
+            status: change_status_label(f.status).to_string(),
+        })
+        .collect();
 
     Ok(RepoStatusDto {
         id: repo_id,
@@ -185,6 +212,7 @@ pub fn get_repo_status(
         head_summary: status.head.as_ref().map(|h| h.subject.clone()),
         head_short_id: status.head.as_ref().map(|h| h.short_id.clone()),
         changed_files_count: status.changed_files.len(),
+        changed_files,
     })
 }
 
@@ -224,6 +252,7 @@ pub fn remove_scan_root(state: State<'_, AppState>, path: String) -> Result<(), 
             return Err(AppError {
                 code: "not_found".into(),
                 message: format!("scan root not found: {path}"),
+                hint: None,
             });
         }
         Ok(())
@@ -242,6 +271,7 @@ pub fn fetch_repo(state: State<'_, AppState>, repo_id: String) -> Result<OpResul
         return Err(AppError {
             code: "repository_missing".into(),
             message: "repository path not found".into(),
+            hint: None,
         });
     }
     let git = GitBinary::resolve()?;
@@ -257,6 +287,7 @@ pub fn pull_repo(state: State<'_, AppState>, repo_id: String) -> Result<OpResult
         return Err(AppError {
             code: "repository_missing".into(),
             message: "repository path not found".into(),
+            hint: None,
         });
     }
     let git = GitBinary::resolve()?;
@@ -276,6 +307,7 @@ pub fn checkout_repo(
         return Err(AppError {
             code: "repository_missing".into(),
             message: "repository path not found".into(),
+            hint: None,
         });
     }
     let git = GitBinary::resolve()?;

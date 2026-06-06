@@ -116,12 +116,14 @@ fn step_dto_to_core(dto: StepDto) -> Result<Step, AppError> {
                     branch: branch.ok_or_else(|| AppError {
                         code: "invalid_step".into(),
                         message: "checkout step requires a branch".into(),
+                        hint: None,
                     })?,
                 },
                 other => {
                     return Err(AppError {
                         code: "invalid_step".into(),
                         message: format!("unknown git operation: {other}"),
+                        hint: None,
                     })
                 }
             };
@@ -140,6 +142,7 @@ fn step_dto_to_core(dto: StepDto) -> Result<Step, AppError> {
         condition: dto.condition,
         rollback,
         confirm: dto.confirm,
+        retry: None,
     })
 }
 
@@ -297,6 +300,7 @@ mod tests {
             condition: None,
             rollback: None,
             confirm: false,
+            retry: None,
         };
         let dto = step_to_dto(&step);
         let back = step_dto_to_core(dto).unwrap();
@@ -313,6 +317,7 @@ mod tests {
             condition: Some("true".into()),
             rollback: None,
             confirm: true,
+            retry: None,
         };
         let dto = step_to_dto(&step);
         let back = step_dto_to_core(dto).unwrap();

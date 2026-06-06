@@ -31,6 +31,7 @@ impl AppState {
             .ok_or_else(|| AppError {
                 code: "config_error".into(),
                 message: "config path has no parent directory".into(),
+                hint: None,
             })
     }
 
