@@ -8,7 +8,7 @@
     JobDto,
     RepoDto,
   } from "$lib/types/workspace";
-  import { errorMessage } from "$lib/types/workspace";
+  import { handleError } from "$lib/types/workspace";
 
   interface Props {
     macro: MacroDto;
@@ -67,7 +67,10 @@
       });
       onComplete(results);
     } catch (e) {
-      onError(errorMessage(e));
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        onError(handled.message);
+      }
     } finally {
       running = false;
     }
@@ -177,7 +180,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-    font-size: 14px;
+    font-size: var(--text-body);
     color: var(--color-body);
     cursor: pointer;
   }
@@ -189,7 +192,7 @@
     border-radius: var(--radius-md);
     background: var(--color-canvas-soft);
     color: var(--color-ink);
-    font-size: 14px;
+    font-size: var(--text-body);
     box-sizing: border-box;
   }
 
@@ -214,13 +217,13 @@
     display: flex;
     align-items: center;
     gap: var(--space-xs);
-    font-size: 13px;
+    font-size: var(--text-caption);
     color: var(--color-body);
     cursor: pointer;
   }
 
   .sel-empty {
-    font-size: 13px;
+    font-size: var(--text-caption);
     color: var(--color-muted);
     font-style: italic;
   }

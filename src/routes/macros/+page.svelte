@@ -5,7 +5,7 @@
   import MacroEditor from "$lib/components/MacroEditor.svelte";
   import MacroRunner from "$lib/components/MacroRunner.svelte";
   import type { MacroDto, StepDto, JobDto } from "$lib/types/workspace";
-  import { errorMessage } from "$lib/types/workspace";
+  import { handleError } from "$lib/types/workspace";
 
   let macros = $state<MacroDto[]>([]);
   let loading = $state(true);
@@ -47,7 +47,10 @@
     try {
       macros = await invoke<MacroDto[]>("list_macros");
     } catch (e) {
-      error = errorMessage(e);
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        error = handled.message;
+      }
     } finally {
       loading = false;
     }
@@ -92,7 +95,10 @@
       showBuilder = false;
       await loadMacros();
     } catch (e) {
-      actionMessage = errorMessage(e);
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        actionMessage = handled.message;
+      }
     } finally {
       saving = false;
     }
@@ -113,7 +119,10 @@
       deleteTarget = null;
       await loadMacros();
     } catch (e) {
-      actionMessage = errorMessage(e);
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        actionMessage = handled.message;
+      }
     }
   }
 
@@ -268,11 +277,11 @@
   .macro-name {
     font-weight: 500;
     color: var(--color-ink);
-    font-size: 15px;
+    font-size: var(--text-body);
   }
 
   .macro-meta {
-    font-size: 13px;
+    font-size: var(--text-caption);
     color: var(--color-muted);
     margin-left: var(--space-sm);
   }

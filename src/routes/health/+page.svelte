@@ -2,12 +2,14 @@
   import type { WorkspaceHealthDto, RepositoryHealthDto } from "$lib/types/health";
   import { getWorkspaceHealth, getRepositoryHealth, refreshHealth } from "$lib/types/health";
   import { onMount } from "svelte";
-  import { errorMessage } from "$lib/types/workspace";
+  import { resolve } from "$app/paths";
+  import { handleError } from "$lib/types/workspace";
 
   let health = $state<WorkspaceHealthDto | null>(null);
   let loading = $state(true);
   let refreshing = $state(false);
   let error = $state<string | null>(null);
+  let errorHint = $state<string | undefined>(undefined);
   let expandedRepo = $state<string | null>(null);
   let repoDetail = $state<RepositoryHealthDto | null>(null);
   let detailLoading = $state(false);
@@ -19,10 +21,15 @@
   async function loadHealth() {
     loading = true;
     error = null;
+    errorHint = undefined;
     try {
       health = await getWorkspaceHealth();
     } catch (e) {
-      error = errorMessage(e);
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        error = handled.message;
+        errorHint = handled.hint;
+      }
     } finally {
       loading = false;
     }
@@ -31,10 +38,15 @@
   async function handleRefresh() {
     refreshing = true;
     error = null;
+    errorHint = undefined;
     try {
       health = await refreshHealth();
     } catch (e) {
-      error = errorMessage(e);
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        error = handled.message;
+        errorHint = handled.hint;
+      }
     } finally {
       refreshing = false;
     }
@@ -85,7 +97,12 @@
   {#if loading}
     <div class="empty-state">Evaluating workspace health…</div>
   {:else if error}
-    <div class="empty-state error">{error}</div>
+    <div class="empty-state error">
+      {error}
+      {#if errorHint}
+        <p class="error-hint">{errorHint}</p>
+      {/if}
+    </div>
   {:else if health}
     <section class="stats-bar" aria-label="Health statistics">
       <div class="stat-card stat-score">
@@ -136,7 +153,15 @@
                     aria-label={repo.worst_severity}
                   ></span>
                 </td>
-                <td class="col-name">{repo.repo_name}</td>
+                <td class="col-name">
+                  <a
+                    href={resolve(`/repo/${repo.repo_id}`)}
+                    class="repo-link"
+                    onclick={(e) => e.stopPropagation()}
+                  >
+                    {repo.repo_name}
+                  </a>
+                </td>
                 <td class="col-severity">{repo.worst_severity}</td>
                 <td class="col-checks">{repo.checks.length} checks</td>
               </tr>
@@ -203,7 +228,7 @@
   }
 
   .stat-value {
-    font-size: 28px;
+    font-size: var(--text-3xl);
     font-weight: 400;
     color: var(--color-ink);
     letter-spacing: -0.03em;
@@ -214,14 +239,14 @@
     color: var(--color-success);
   }
   .stat-value.stat-warning {
-    color: var(--color-warning, #d97706);
+    color: var(--color-warning);
   }
   .stat-value.stat-critical {
     color: var(--color-error);
   }
 
   .stat-label {
-    font-size: 13px;
+    font-size: var(--text-caption);
     color: var(--color-muted);
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -237,13 +262,13 @@
   .repo-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 14px;
+    font-size: var(--text-body);
   }
 
   .repo-table th {
     text-align: left;
     padding: var(--space-sm) var(--space-base);
-    font-size: 12px;
+    font-size: var(--text-sm);
     font-weight: 600;
     color: var(--color-muted);
     text-transform: uppercase;
@@ -287,7 +312,7 @@
     background: var(--color-success);
   }
   .sev-dot.sev-warning {
-    background: var(--color-warning, #d97706);
+    background: var(--color-warning);
   }
   .sev-dot.sev-critical {
     background: var(--color-error);
@@ -295,13 +320,23 @@
 
   .col-severity {
     text-transform: capitalize;
-    font-size: 13px;
+    font-size: var(--text-caption);
     color: var(--color-muted);
   }
 
   .col-checks {
-    font-size: 13px;
+    font-size: var(--text-caption);
     color: var(--color-muted);
+  }
+
+  .repo-link {
+    color: var(--color-ink);
+    font-weight: 500;
+    text-decoration: none;
+  }
+
+  .repo-link:hover {
+    color: var(--color-primary);
   }
 
   .detail-row td {
@@ -323,7 +358,7 @@
     padding: var(--space-xs) var(--space-sm);
     border-radius: var(--radius-md);
     background: var(--color-surface-card);
-    font-size: 13px;
+    font-size: var(--text-caption);
   }
 
   .check-id {
@@ -338,7 +373,7 @@
 
   .detail-loading {
     padding: var(--space-sm);
-    font-size: 13px;
+    font-size: var(--text-caption);
     color: var(--color-muted);
   }
 </style>

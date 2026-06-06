@@ -8,16 +8,18 @@
     RepoWithStatus,
     TagDto,
   } from "$lib/types/workspace";
-  import { errorMessage } from "$lib/types/workspace";
+  import { handleError } from "$lib/types/workspace";
 
   let repos = $state<RepoWithStatus[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);
+  let errorHint = $state<string | undefined>(undefined);
   let showScanDialog = $state(false);
   let scanPath = $state("");
   let scanning = $state(false);
   let fetchingAll = $state(false);
   let actionMessage = $state<string | null>(null);
+  let actionHint = $state<string | undefined>(undefined);
 
   // Tag filter
   let allTags = $state<TagDto[]>([]);
@@ -38,13 +40,18 @@
   async function loadWorkspace() {
     loading = true;
     error = null;
+    errorHint = undefined;
     try {
       const list = await invoke<RepoDto[]>("list_repositories");
       repos = list.map((r) => ({ ...r, statusLoading: r.state === "active" }));
       allTags = await invoke<TagDto[]>("list_tags");
       await loadStatuses();
     } catch (e) {
-      error = errorMessage(e);
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        error = handled.message;
+        errorHint = handled.hint;
+      }
     } finally {
       loading = false;
     }
@@ -68,6 +75,7 @@
     if (!scanPath.trim()) return;
     scanning = true;
     actionMessage = null;
+    actionHint = undefined;
     try {
       const result = await invoke<{ new: number; found: number }>("scan_directory", {
         path: scanPath.trim(),
@@ -77,7 +85,11 @@
       scanPath = "";
       await loadWorkspace();
     } catch (e) {
-      actionMessage = errorMessage(e);
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        actionMessage = handled.message;
+        actionHint = handled.hint;
+      }
     } finally {
       scanning = false;
     }
@@ -86,12 +98,17 @@
   async function handleFetchAll() {
     fetchingAll = true;
     actionMessage = null;
+    actionHint = undefined;
     try {
       const result = await invoke<BulkResultDto>("fetch_all");
       actionMessage = `Fetch all: ${result.success_count} succeeded, ${result.failed_count} failed, ${result.skipped_count} skipped`;
       await loadStatuses();
     } catch (e) {
-      actionMessage = errorMessage(e);
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        actionMessage = handled.message;
+        actionHint = handled.hint;
+      }
     } finally {
       fetchingAll = false;
     }
@@ -103,7 +120,11 @@
       const status = await invoke<RepoStatusDto>("get_repo_status", { repoId });
       repos = repos.map((r) => (r.id === repoId ? { ...r, status } : r));
     } catch (e) {
-      actionMessage = errorMessage(e);
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        actionMessage = handled.message;
+        actionHint = handled.hint;
+      }
     }
   }
 
@@ -113,7 +134,11 @@
       const status = await invoke<RepoStatusDto>("get_repo_status", { repoId });
       repos = repos.map((r) => (r.id === repoId ? { ...r, status } : r));
     } catch (e) {
-      actionMessage = errorMessage(e);
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        actionMessage = handled.message;
+        actionHint = handled.hint;
+      }
     }
   }
 
@@ -156,7 +181,12 @@
   </header>
 
   {#if actionMessage}
-    <div class="action-banner" role="status">{actionMessage}</div>
+    <div class="action-banner" role="status">
+      {actionMessage}
+      {#if actionHint}
+        <p class="error-hint">{actionHint}</p>
+      {/if}
+    </div>
   {/if}
 
   <section class="stats-bar" aria-label="Workspace statistics">
@@ -181,7 +211,12 @@
   {#if loading}
     <div class="empty-state">Loading repositories…</div>
   {:else if error}
-    <div class="empty-state error">{error}</div>
+    <div class="empty-state error">
+      {error}
+      {#if errorHint}
+        <p class="error-hint">{errorHint}</p>
+      {/if}
+    </div>
   {:else if repos.length === 0}
     <div class="empty-state">
       <p>No repositories registered yet.</p>
@@ -362,7 +397,7 @@
   }
 
   .stat-value {
-    font-size: 28px;
+    font-size: var(--text-3xl);
     font-weight: 400;
     color: var(--color-ink);
     letter-spacing: -0.03em;
@@ -380,7 +415,7 @@
   }
 
   .stat-label {
-    font-size: 13px;
+    font-size: var(--text-caption);
     color: var(--color-muted);
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -397,7 +432,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-    font-size: 13px;
+    font-size: var(--text-caption);
     color: var(--color-muted);
   }
 
@@ -407,7 +442,7 @@
     border-radius: var(--radius-md);
     background: var(--color-surface-card);
     color: var(--color-ink);
-    font-size: 13px;
+    font-size: var(--text-caption);
   }
 
   .repo-table-wrap {
@@ -420,13 +455,13 @@
   .repo-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 14px;
+    font-size: var(--text-body);
   }
 
   .repo-table th {
     text-align: left;
     padding: var(--space-sm) var(--space-base);
-    font-size: 12px;
+    font-size: var(--text-sm);
     font-weight: 600;
     color: var(--color-muted);
     text-transform: uppercase;
@@ -470,7 +505,7 @@
 
   .repo-path {
     display: block;
-    font-size: 12px;
+    font-size: var(--text-sm);
     color: var(--color-muted-soft);
     margin-top: 2px;
     overflow: hidden;
@@ -485,7 +520,7 @@
 
   .commit-id {
     display: inline-block;
-    font-size: 12px;
+    font-size: var(--text-sm);
     color: var(--color-muted);
     margin-right: var(--space-xs);
   }
@@ -501,7 +536,7 @@
   }
 
   .tracking {
-    font-size: 13px;
+    font-size: var(--text-caption);
     color: var(--color-muted);
     white-space: nowrap;
   }

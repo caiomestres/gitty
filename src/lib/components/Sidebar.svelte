@@ -50,6 +50,14 @@
       collapsed.add(id);
     }
   }
+
+  function hasAnyRepos(nodes: GroupTreeNodeDto[]): boolean {
+    return nodes.some(
+      (n) => n.repos.length > 0 || (n.children.length > 0 && hasAnyRepos(n.children)),
+    );
+  }
+
+  const anyRepos = $derived(hasAnyRepos(tree));
 </script>
 
 {#snippet treeNode(node: GroupTreeNodeDto, depth: number)}
@@ -65,6 +73,8 @@
       <span class="group-name">{node.group.name}</span>
       {#if node.repos.length > 0}
         <span class="group-count">{node.repos.length}</span>
+      {:else if node.repos.length === 0 && !hasAnyRepos(node.children)}
+        <span class="group-empty">(empty)</span>
       {/if}
     </button>
 
@@ -110,16 +120,31 @@
     {/each}
   </ul>
 
-  {#if tree.length > 0}
-    <div class="tree-section">
-      <span class="tree-heading">Explorer</span>
+  <div class="tree-section">
+    <span class="tree-heading">Explorer</span>
+    {#if tree.length === 0}
+      <div class="tree-empty-state">
+        <p>No repositories. Scan a directory to get started.</p>
+        <a href={resolve("/settings")} class="tree-empty-link">Go to Settings</a>
+      </div>
+    {:else if !anyRepos}
+      <div class="tree-empty-state">
+        <p>No repositories. Scan a directory to get started.</p>
+        <a href={resolve("/settings")} class="tree-empty-link">Go to Settings</a>
+      </div>
       <div class="tree-root">
         {#each tree as node (node.group.id)}
           {@render treeNode(node, 0)}
         {/each}
       </div>
-    </div>
-  {/if}
+    {:else}
+      <div class="tree-root">
+        {#each tree as node (node.group.id)}
+          {@render treeNode(node, 0)}
+        {/each}
+      </div>
+    {/if}
+  </div>
 </nav>
 
 <style>
@@ -149,12 +174,12 @@
     border-radius: var(--radius-md);
     background: var(--color-primary);
     color: var(--color-on-primary);
-    font-size: 14px;
+    font-size: var(--text-body);
     font-weight: 600;
   }
 
   .brand-name {
-    font-size: 16px;
+    font-size: var(--text-base);
     font-weight: 600;
     color: var(--color-ink);
     letter-spacing: -0.02em;
@@ -176,7 +201,7 @@
     padding: var(--space-sm) var(--space-base);
     border-radius: var(--radius-md);
     color: var(--color-body);
-    font-size: 14px;
+    font-size: var(--text-body);
     transition: background 0.15s ease;
     text-decoration: none;
   }
@@ -193,7 +218,7 @@
   }
 
   .nav-icon {
-    font-size: 14px;
+    font-size: var(--text-body);
     opacity: 0.7;
     width: 18px;
     text-align: center;
@@ -210,7 +235,7 @@
 
   .tree-heading {
     display: block;
-    font-size: 11px;
+    font-size: var(--text-xs);
     font-weight: 600;
     color: var(--color-muted);
     text-transform: uppercase;
@@ -228,7 +253,7 @@
     border: none;
     background: none;
     color: var(--color-ink);
-    font-size: 13px;
+    font-size: var(--text-caption);
     font-weight: 500;
     cursor: pointer;
     border-radius: var(--radius-sm);
@@ -240,7 +265,7 @@
   }
 
   .toggle-icon {
-    font-size: 10px;
+    font-size: var(--text-2xs);
     color: var(--color-muted);
     width: 12px;
     text-align: center;
@@ -256,15 +281,42 @@
   }
 
   .group-count {
-    font-size: 11px;
+    font-size: var(--text-xs);
     color: var(--color-muted);
     flex-shrink: 0;
+  }
+
+  .group-empty {
+    font-size: var(--text-xs);
+    color: var(--color-muted-soft);
+    flex-shrink: 0;
+  }
+
+  .tree-empty-state {
+    padding: var(--space-sm) var(--space-base);
+    font-size: var(--text-sm);
+    color: var(--color-muted);
+    line-height: 1.5;
+  }
+
+  .tree-empty-state p {
+    margin: 0 0 var(--space-xs);
+  }
+
+  .tree-empty-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-size: var(--text-sm);
+  }
+
+  .tree-empty-link:hover {
+    text-decoration: underline;
   }
 
   .tree-repo {
     display: block;
     padding: 2px var(--space-xs);
-    font-size: 13px;
+    font-size: var(--text-caption);
     color: var(--color-body);
     text-decoration: none;
     border-radius: var(--radius-sm);

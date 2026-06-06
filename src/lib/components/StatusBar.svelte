@@ -43,13 +43,13 @@
   }
 
   .app-title {
-    font-size: 18px;
+    font-size: var(--text-lg);
     font-weight: 600;
     letter-spacing: -0.02em;
   }
 
   .app-subtitle {
-    font-size: 13px;
+    font-size: var(--text-caption);
     color: var(--color-muted);
   }
 
@@ -64,7 +64,7 @@
     border-radius: var(--radius-md);
     background: var(--color-surface-card);
     color: var(--color-ink);
-    font-size: 13px;
+    font-size: var(--text-caption);
     font-weight: 500;
     transition: background 0.15s ease;
   }

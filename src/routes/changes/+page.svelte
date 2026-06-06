@@ -1,13 +1,14 @@
 <script lang="ts">
   import type { GroupedChangesDto, TimeWindow, Grouping } from "$lib/types/changes";
   import { getChanges } from "$lib/types/changes";
-  import { errorMessage } from "$lib/types/workspace";
+  import { handleError } from "$lib/types/workspace";
   import { onMount } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
 
   let data = $state<GroupedChangesDto | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
+  let errorHint = $state<string | undefined>(undefined);
   let window = $state<TimeWindow>("week");
   let grouping = $state<Grouping>("repository");
   let allBranchesRepos = new SvelteSet<string>();
@@ -19,10 +20,15 @@
   async function loadChanges() {
     loading = true;
     error = null;
+    errorHint = undefined;
     try {
       data = await getChanges(window, grouping, [...allBranchesRepos]);
     } catch (e) {
-      error = errorMessage(e);
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        error = handled.message;
+        errorHint = handled.hint;
+      }
     } finally {
       loading = false;
     }
@@ -129,7 +135,12 @@
   {#if loading}
     <div class="empty-state">Scanning commits…</div>
   {:else if error}
-    <div class="empty-state error">{error}</div>
+    <div class="empty-state error">
+      {error}
+      {#if errorHint}
+        <p class="error-hint">{errorHint}</p>
+      {/if}
+    </div>
   {:else if !data || data.groups.length === 0}
     <div class="empty-state">
       <p>No commits found in the selected time window.</p>
@@ -202,7 +213,7 @@
   }
 
   .control-label {
-    font-size: 13px;
+    font-size: var(--text-caption);
     color: var(--color-muted);
     white-space: nowrap;
   }
@@ -219,7 +230,7 @@
     border: none;
     background: var(--color-surface-card);
     color: var(--color-body);
-    font-size: 13px;
+    font-size: var(--text-caption);
     cursor: pointer;
     border-right: 1px solid var(--color-hairline);
     transition: background 0.15s ease;
@@ -261,14 +272,14 @@
   }
 
   .group-key {
-    font-size: 14px;
+    font-size: var(--text-body);
     font-weight: 600;
     color: var(--color-ink);
     margin: 0;
   }
 
   .group-count {
-    font-size: 12px;
+    font-size: var(--text-sm);
     color: var(--color-muted);
   }
 
@@ -284,7 +295,7 @@
     border-radius: var(--radius-md);
     background: var(--color-surface-card);
     color: var(--color-muted);
-    font-size: 11px;
+    font-size: var(--text-xs);
     cursor: pointer;
     transition: background 0.15s ease;
   }
@@ -306,7 +317,7 @@
     gap: 0 var(--space-sm);
     padding: var(--space-xs) var(--space-base);
     border-bottom: 1px solid var(--color-hairline-soft);
-    font-size: 13px;
+    font-size: var(--text-caption);
   }
 
   .commit-item:last-child {
@@ -316,7 +327,7 @@
   .commit-hash {
     grid-row: 1 / 3;
     color: var(--color-muted);
-    font-size: 12px;
+    font-size: var(--text-sm);
     padding-top: 2px;
   }
 
@@ -329,7 +340,7 @@
 
   .commit-meta {
     color: var(--color-muted-soft);
-    font-size: 12px;
+    font-size: var(--text-sm);
   }
 
   .mono {

@@ -1,40 +1,151 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
   import type { NotificationConfigDto } from "$lib/types/notifications";
   import { getNotificationConfig, setNotificationConfig } from "$lib/types/notifications";
+  import type { MacroDto } from "$lib/types/workspace";
+  import { handleError } from "$lib/types/workspace";
+
+  type SchedulerMode = "simple" | "advanced";
+
+  interface TimeOfDay {
+    hour: number;
+    minute: number;
+  }
+
+  interface SchedulerConfigDto {
+    enabled: boolean;
+    macro_id: string | null;
+    trigger:
+      | { mode: "simple"; interval_minutes: number }
+      | {
+          mode: "advanced";
+          interval_minutes: number;
+          window_start: TimeOfDay;
+          window_end: TimeOfDay;
+          days: string[];
+        };
+    power: { pause_on_battery: boolean; battery_threshold: number };
+  }
+
+  const DAY_OPTIONS = [
+    { key: "mon", label: "Mon" },
+    { key: "tue", label: "Tue" },
+    { key: "wed", label: "Wed" },
+    { key: "thu", label: "Thu" },
+    { key: "fri", label: "Fri" },
+    { key: "sat", label: "Sat" },
+    { key: "sun", label: "Sun" },
+  ] as const;
 
   let scanRoots = $state<string[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);
+  let errorHint = $state<string | undefined>(undefined);
   let showAddDialog = $state(false);
   let newPath = $state("");
   let scanning = $state(false);
   let actionMessage = $state<string | null>(null);
+  let actionHint = $state<string | undefined>(undefined);
 
   // Scheduler state
   let schedulerEnabled = $state(false);
   let schedulerInterval = $state(30);
+  let schedulerMode = $state<SchedulerMode>("simple");
+  let pauseOnBattery = $state(true);
+  let batteryThreshold = $state(20);
+  let macroId = $state<string | null>(null);
+  let macros = $state<MacroDto[]>([]);
+  let windowStart = $state("09:00");
+  let windowEnd = $state("17:00");
+  let selectedDays = $state<string[]>(["mon", "tue", "wed", "thu", "fri"]);
   let schedulerLoading = $state(true);
+
+  const windowWrapsMidnight = $derived(() => {
+    const start = parseTime(windowStart);
+    const end = parseTime(windowEnd);
+    if (!start || !end) return false;
+    return start.hour * 60 + start.minute > end.hour * 60 + end.minute;
+  });
 
   // Notification state
   let notifTrigger = $state<NotificationConfigDto["trigger"]>("on_critical");
   let notifPollingMinutes = $state<number | null>(5);
   let notifLoading = $state(true);
 
+  function parseTime(value: string): TimeOfDay | null {
+    const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+    if (!match) return null;
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    if (hour > 23 || minute > 59) return null;
+    return { hour, minute };
+  }
+
+  function formatTime(t: TimeOfDay): string {
+    return `${String(t.hour).padStart(2, "0")}:${String(t.minute).padStart(2, "0")}`;
+  }
+
+  function applySchedulerConfig(config: SchedulerConfigDto) {
+    schedulerEnabled = config.enabled;
+    macroId = config.macro_id;
+    pauseOnBattery = config.power.pause_on_battery;
+    batteryThreshold = config.power.battery_threshold;
+
+    if (config.trigger.mode === "advanced") {
+      schedulerMode = "advanced";
+      schedulerInterval = config.trigger.interval_minutes;
+      windowStart = formatTime(config.trigger.window_start);
+      windowEnd = formatTime(config.trigger.window_end);
+      selectedDays = [...config.trigger.days];
+    } else {
+      schedulerMode = "simple";
+      schedulerInterval = config.trigger.interval_minutes;
+    }
+  }
+
+  function buildTrigger():
+    | { mode: "simple"; interval_minutes: number }
+    | {
+        mode: "advanced";
+        interval_minutes: number;
+        window_start: TimeOfDay;
+        window_end: TimeOfDay;
+        days: string[];
+      } {
+    if (schedulerMode === "simple") {
+      return { mode: "simple", interval_minutes: schedulerInterval };
+    }
+
+    const start = parseTime(windowStart) ?? { hour: 9, minute: 0 };
+    const end = parseTime(windowEnd) ?? { hour: 17, minute: 0 };
+    return {
+      mode: "advanced",
+      interval_minutes: schedulerInterval,
+      window_start: start,
+      window_end: end,
+      days: selectedDays,
+    };
+  }
+
   async function loadSchedulerConfig() {
     schedulerLoading = true;
     try {
-      const status = await invoke<{
-        enabled: boolean;
-        last_run: string | null;
-        next_run: string | null;
-      }>("get_scheduler_status");
-      schedulerEnabled = status.enabled;
+      const config = await invoke<SchedulerConfigDto>("get_scheduler_config");
+      applySchedulerConfig(config);
     } catch {
       /* ignore */
     } finally {
       schedulerLoading = false;
+    }
+  }
+
+  async function loadMacros() {
+    try {
+      macros = await invoke<MacroDto[]>("list_macros");
+    } catch {
+      macros = [];
     }
   }
 
@@ -43,15 +154,31 @@
       await invoke("set_scheduler_config", {
         config: {
           enabled: schedulerEnabled,
-          trigger: { mode: "simple", interval_minutes: schedulerInterval },
-          power: { pause_on_battery: true, battery_threshold: 20 },
-          macro_id: null,
+          trigger: buildTrigger(),
+          power: {
+            pause_on_battery: pauseOnBattery,
+            battery_threshold: batteryThreshold,
+          },
+          macro_id: macroId,
         },
       });
       actionMessage = "Scheduler settings saved";
     } catch (e) {
-      actionMessage = `Error: ${String(e)}`;
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        actionMessage = handled.message;
+        actionHint = handled.hint;
+      }
     }
+  }
+
+  function toggleDay(day: string) {
+    if (selectedDays.includes(day)) {
+      selectedDays = selectedDays.filter((d) => d !== day);
+    } else {
+      selectedDays = [...selectedDays, day];
+    }
+    saveSchedulerConfig();
   }
 
   async function loadNotifConfig() {
@@ -75,23 +202,45 @@
       });
       actionMessage = "Notification settings saved";
     } catch (e) {
-      actionMessage = `Error: ${String(e)}`;
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        actionMessage = handled.message;
+        actionHint = handled.hint;
+      }
     }
   }
 
   onMount(() => {
     loadScanRoots();
     loadSchedulerConfig();
+    loadMacros();
     loadNotifConfig();
+
+    let unlisten: (() => void) | undefined;
+    listen("config-changed", () => {
+      loadScanRoots();
+      loadSchedulerConfig();
+      loadMacros();
+      loadNotifConfig();
+    }).then((fn) => {
+      unlisten = fn;
+    });
+
+    return () => unlisten?.();
   });
 
   async function loadScanRoots() {
     loading = true;
     error = null;
+    errorHint = undefined;
     try {
       scanRoots = await invoke<string[]>("list_scan_roots");
     } catch (e) {
-      error = String(e);
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        error = handled.message;
+        errorHint = handled.hint;
+      }
     } finally {
       loading = false;
     }
@@ -101,6 +250,7 @@
     if (!newPath.trim()) return;
     scanning = true;
     actionMessage = null;
+    actionHint = undefined;
     try {
       const result = await invoke<{ found: number; new: number }>("scan_directory", {
         path: newPath.trim(),
@@ -110,7 +260,11 @@
       newPath = "";
       await loadScanRoots();
     } catch (e) {
-      actionMessage = `Error: ${String(e)}`;
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        actionMessage = handled.message;
+        actionHint = handled.hint;
+      }
     } finally {
       scanning = false;
     }
@@ -118,22 +272,32 @@
 
   async function handleRemove(path: string) {
     actionMessage = null;
+    actionHint = undefined;
     try {
       await invoke("remove_scan_root", { path });
       actionMessage = `Removed scan root: ${path}`;
       await loadScanRoots();
     } catch (e) {
-      actionMessage = `Error: ${String(e)}`;
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        actionMessage = handled.message;
+        actionHint = handled.hint;
+      }
     }
   }
 
   async function handleRescan(path: string) {
     actionMessage = null;
+    actionHint = undefined;
     try {
       const result = await invoke<{ found: number; new: number }>("scan_directory", { path });
       actionMessage = `Rescanned ${path}: ${result.found} found, ${result.new} new`;
     } catch (e) {
-      actionMessage = `Error: ${String(e)}`;
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        actionMessage = handled.message;
+        actionHint = handled.hint;
+      }
     }
   }
 </script>
@@ -147,7 +311,12 @@
   </header>
 
   {#if actionMessage}
-    <div class="action-banner" role="status">{actionMessage}</div>
+    <div class="action-banner" role="status">
+      {actionMessage}
+      {#if actionHint}
+        <p class="error-hint">{actionHint}</p>
+      {/if}
+    </div>
   {/if}
 
   <section class="settings-section">
@@ -166,7 +335,12 @@
     {#if loading}
       <div class="empty-state">Loading…</div>
     {:else if error}
-      <div class="empty-state error">{error}</div>
+      <div class="empty-state error">
+        {error}
+        {#if errorHint}
+          <p class="error-hint">{errorHint}</p>
+        {/if}
+      </div>
     {:else if scanRoots.length === 0}
       <div class="empty-state">
         <p>No Scan Roots configured.</p>
@@ -223,6 +397,20 @@
       </div>
       <div class="setting-row">
         <label class="setting-label">
+          Mode
+          <select
+            class="setting-select"
+            bind:value={schedulerMode}
+            disabled={!schedulerEnabled}
+            onchange={saveSchedulerConfig}
+          >
+            <option value="simple">Simple</option>
+            <option value="advanced">Advanced</option>
+          </select>
+        </label>
+      </div>
+      <div class="setting-row">
+        <label class="setting-label">
           Interval (minutes)
           <input
             type="number"
@@ -233,6 +421,92 @@
             disabled={!schedulerEnabled}
             onchange={saveSchedulerConfig}
           />
+        </label>
+      </div>
+      {#if schedulerMode === "advanced"}
+        <div class="setting-row">
+          <label class="setting-label">
+            Window start
+            <input
+              type="time"
+              class="setting-input setting-input-time"
+              bind:value={windowStart}
+              disabled={!schedulerEnabled}
+              onchange={saveSchedulerConfig}
+            />
+          </label>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">
+            Window end
+            <input
+              type="time"
+              class="setting-input setting-input-time"
+              bind:value={windowEnd}
+              disabled={!schedulerEnabled}
+              onchange={saveSchedulerConfig}
+            />
+          </label>
+        </div>
+        {#if windowWrapsMidnight()}
+          <p class="setting-note">Window wraps past midnight</p>
+        {/if}
+        <div class="setting-row">
+          <span class="setting-label">Days</span>
+          <div class="day-checkboxes">
+            {#each DAY_OPTIONS as day (day.key)}
+              <label class="day-checkbox">
+                <input
+                  type="checkbox"
+                  checked={selectedDays.includes(day.key)}
+                  disabled={!schedulerEnabled}
+                  onchange={() => toggleDay(day.key)}
+                />
+                {day.label}
+              </label>
+            {/each}
+          </div>
+        </div>
+      {/if}
+      <div class="setting-row">
+        <label class="setting-label">
+          <input
+            type="checkbox"
+            bind:checked={pauseOnBattery}
+            onchange={saveSchedulerConfig}
+            disabled={!schedulerEnabled}
+          />
+          Pause on battery
+        </label>
+      </div>
+      <div class="setting-row">
+        <label class="setting-label">
+          Battery threshold (%)
+          <input
+            type="number"
+            class="setting-input"
+            min="5"
+            max="100"
+            bind:value={batteryThreshold}
+            disabled={!schedulerEnabled || !pauseOnBattery}
+            onchange={saveSchedulerConfig}
+          />
+        </label>
+      </div>
+      <div class="setting-row">
+        <label class="setting-label">
+          Macro
+          <select
+            class="setting-select"
+            bind:value={macroId}
+            disabled={!schedulerEnabled}
+            onchange={saveSchedulerConfig}
+          >
+            <option value={null}>Default (fetch all)</option>
+            {#each macros as m (m.id)}
+              <option value={m.id}>{m.name}</option>
+            {/each}
+          </select>
         </label>
       </div>
     {/if}
@@ -342,14 +616,14 @@
   }
 
   .section-title {
-    font-size: 18px;
+    font-size: var(--text-lg);
     font-weight: 600;
     color: var(--color-ink);
   }
 
   .section-desc {
     margin: 0 0 var(--space-base);
-    font-size: 14px;
+    font-size: var(--text-body);
     color: var(--color-muted);
   }
 
@@ -373,7 +647,7 @@
   }
 
   .scan-root-path {
-    font-size: 14px;
+    font-size: var(--text-body);
     color: var(--color-body);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -399,7 +673,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-    font-size: 14px;
+    font-size: var(--text-body);
     color: var(--color-body);
   }
 
@@ -410,7 +684,7 @@
     border-radius: var(--radius-md);
     background: var(--color-surface-card);
     color: var(--color-ink);
-    font-size: 14px;
+    font-size: var(--text-body);
   }
 
   .setting-select {
@@ -419,6 +693,30 @@
     border-radius: var(--radius-md);
     background: var(--color-surface-card);
     color: var(--color-ink);
-    font-size: 14px;
+    font-size: var(--text-body);
+  }
+
+  .setting-input-time {
+    width: 120px;
+  }
+
+  .setting-note {
+    margin: 0 0 var(--space-sm);
+    font-size: var(--text-caption);
+    color: var(--color-muted);
+  }
+
+  .day-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+  }
+
+  .day-checkbox {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xxs);
+    font-size: var(--text-caption);
+    color: var(--color-body);
   }
 </style>

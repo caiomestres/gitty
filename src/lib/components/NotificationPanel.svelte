@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { goto } from "$app/navigation";
+  import { resolve } from "$app/paths";
   import type { NotificationDto } from "$lib/types/notifications";
   import { getNotifications, markNotificationRead } from "$lib/types/notifications";
 
@@ -29,6 +31,20 @@
   async function handleMarkRead(id: string) {
     await markNotificationRead(id);
     notifications = notifications.map((n) => (n.id === id ? { ...n, read: true } : n));
+  }
+
+  async function markAllRead() {
+    const unread = notifications.filter((n) => !n.read);
+    await Promise.all(unread.map((n) => markNotificationRead(n.id)));
+    notifications = notifications.map((n) => ({ ...n, read: true }));
+  }
+
+  async function handleNotificationClick(notif: NotificationDto) {
+    if (!notif.read) {
+      await handleMarkRead(notif.id);
+    }
+    open = false;
+    goto(resolve("/health"));
   }
 
   function formatTime(iso: string): string {
@@ -63,6 +79,9 @@
     <div class="panel" role="dialog" aria-label="Notifications">
       <div class="panel-header">
         <h3 class="panel-title">Notifications</h3>
+        {#if unreadCount > 0}
+          <button class="mark-all-btn" type="button" onclick={markAllRead}>Mark all read</button>
+        {/if}
       </div>
       <div class="panel-body">
         {#if notifications.length === 0}
@@ -72,8 +91,9 @@
             <button
               class="notif-item"
               class:unread={!notif.read}
+              class:read={notif.read}
               type="button"
-              onclick={() => handleMarkRead(notif.id)}
+              onclick={() => handleNotificationClick(notif)}
             >
               <span class="notif-dot sev-{notif.severity}"></span>
               <div class="notif-content">
@@ -100,7 +120,7 @@
     border: none;
     padding: var(--space-xs);
     cursor: pointer;
-    font-size: 16px;
+    font-size: var(--text-base);
     line-height: 1;
     border-radius: var(--radius-md);
     transition: background 0.15s ease;
@@ -118,8 +138,8 @@
     height: 16px;
     border-radius: 999px;
     background: var(--color-error);
-    color: white;
-    font-size: 10px;
+    color: var(--color-on-primary);
+    font-size: var(--text-2xs);
     font-weight: 700;
     display: flex;
     align-items: center;
@@ -151,15 +171,32 @@
   }
 
   .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
     padding: var(--space-sm) var(--space-base);
     border-bottom: 1px solid var(--color-hairline);
   }
 
   .panel-title {
-    font-size: 14px;
+    font-size: var(--text-body);
     font-weight: 600;
     color: var(--color-ink);
     margin: 0;
+  }
+
+  .mark-all-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: var(--text-sm);
+    color: var(--color-primary);
+    cursor: pointer;
+  }
+
+  .mark-all-btn:hover {
+    text-decoration: underline;
   }
 
   .panel-body {
@@ -170,7 +207,7 @@
   .panel-empty {
     padding: var(--space-xl) var(--space-base);
     text-align: center;
-    font-size: 13px;
+    font-size: var(--text-caption);
     color: var(--color-muted);
   }
 
@@ -200,6 +237,10 @@
     background: var(--color-canvas-soft);
   }
 
+  .notif-item.read {
+    opacity: 0.6;
+  }
+
   .notif-dot {
     width: 8px;
     height: 8px;
@@ -212,7 +253,7 @@
     background: var(--color-primary);
   }
   .notif-dot.sev-warning {
-    background: var(--color-warning, #d97706);
+    background: var(--color-warning);
   }
   .notif-dot.sev-critical {
     background: var(--color-error);
@@ -226,18 +267,18 @@
   }
 
   .notif-title {
-    font-size: 13px;
+    font-size: var(--text-caption);
     font-weight: 500;
     color: var(--color-ink);
   }
 
   .notif-body {
-    font-size: 12px;
+    font-size: var(--text-sm);
     color: var(--color-body);
   }
 
   .notif-time {
-    font-size: 11px;
+    font-size: var(--text-xs);
     color: var(--color-muted-soft);
   }
 </style>

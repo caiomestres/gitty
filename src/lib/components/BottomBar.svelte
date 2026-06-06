@@ -64,7 +64,7 @@
     padding: var(--space-xs) var(--space-lg);
     background: var(--color-canvas-soft);
     min-height: 36px;
-    font-size: 13px;
+    font-size: var(--text-caption);
     color: var(--color-muted);
   }
 

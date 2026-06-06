@@ -1,13 +1,18 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
-  import type { GroupDto } from "$lib/types/workspace";
-  import { errorMessage } from "$lib/types/workspace";
+  import { SvelteSet } from "svelte/reactivity";
+  import type { GroupDto, GroupTreeNodeDto } from "$lib/types/workspace";
+  import { handleError } from "$lib/types/workspace";
 
   let groups = $state<GroupDto[]>([]);
+  let tree = $state<GroupTreeNodeDto[]>([]);
+  let collapsed = new SvelteSet<string>();
   let loading = $state(true);
   let error = $state<string | null>(null);
+  let errorHint = $state<string | undefined>(undefined);
   let actionMessage = $state<string | null>(null);
+  let actionHint = $state<string | undefined>(undefined);
 
   let showCreateDialog = $state(false);
   let createName = $state("");
@@ -38,24 +43,40 @@
   async function loadGroups() {
     loading = true;
     error = null;
+    errorHint = undefined;
     try {
-      groups = await invoke<GroupDto[]>("list_groups");
+      [groups, tree] = await Promise.all([
+        invoke<GroupDto[]>("list_groups"),
+        invoke<GroupTreeNodeDto[]>("group_tree"),
+      ]);
     } catch (e) {
-      error = errorMessage(e);
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        error = handled.message;
+        errorHint = handled.hint;
+      }
     } finally {
       loading = false;
     }
   }
 
-  function parentName(parentId: string | null): string {
-    if (!parentId) return "—";
-    return groups.find((g) => g.id === parentId)?.name ?? parentId;
+  function toggleNode(id: string) {
+    if (collapsed.has(id)) {
+      collapsed.delete(id);
+    } else {
+      collapsed.add(id);
+    }
+  }
+
+  function repoCount(node: GroupTreeNodeDto): number {
+    return node.repos.length + node.children.reduce((sum, child) => sum + repoCount(child), 0);
   }
 
   async function handleCreate() {
     if (!createName.trim()) return;
     creating = true;
     actionMessage = null;
+    actionHint = undefined;
     try {
       await invoke("create_group", {
         name: createName.trim(),
@@ -67,7 +88,11 @@
       createParentId = null;
       await loadGroups();
     } catch (e) {
-      actionMessage = errorMessage(e);
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        actionMessage = handled.message;
+        actionHint = handled.hint;
+      }
     } finally {
       creating = false;
     }
@@ -82,13 +107,18 @@
   async function handleRename() {
     if (!renameName.trim()) return;
     actionMessage = null;
+    actionHint = undefined;
     try {
       await invoke("rename_group", { id: renameId, newName: renameName.trim() });
       actionMessage = `Renamed group to "${renameName.trim()}"`;
       showRenameDialog = false;
       await loadGroups();
     } catch (e) {
-      actionMessage = errorMessage(e);
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        actionMessage = handled.message;
+        actionHint = handled.hint;
+      }
     }
   }
 
@@ -100,13 +130,18 @@
 
   async function handleDelete() {
     actionMessage = null;
+    actionHint = undefined;
     try {
       await invoke("delete_group", { id: deleteId });
       actionMessage = `Deleted group "${deleteName}"`;
       showDeleteDialog = false;
       await loadGroups();
     } catch (e) {
-      actionMessage = errorMessage(e);
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        actionMessage = handled.message;
+        actionHint = handled.hint;
+      }
     }
   }
 
@@ -118,16 +153,65 @@
 
   async function handleMove() {
     actionMessage = null;
+    actionHint = undefined;
     try {
       await invoke("move_group", { id: moveId, newParentId: moveParentId || null });
       actionMessage = "Group moved successfully";
       showMoveDialog = false;
       await loadGroups();
     } catch (e) {
-      actionMessage = errorMessage(e);
+      const handled = handleError(e);
+      if (!handled.isTransient) {
+        actionMessage = handled.message;
+        actionHint = handled.hint;
+      }
     }
   }
 </script>
+
+{#snippet treeNode(node: GroupTreeNodeDto, depth: number)}
+  <div class="tree-node" style="padding-left: {depth * 20}px">
+    <div class="tree-row">
+      {#if node.children.length > 0}
+        <button
+          class="tree-toggle"
+          type="button"
+          aria-label={collapsed.has(node.group.id) ? "Expand" : "Collapse"}
+          onclick={() => toggleNode(node.group.id)}
+        >
+          {collapsed.has(node.group.id) ? "▸" : "▾"}
+        </button>
+      {:else}
+        <span class="tree-spacer"></span>
+      {/if}
+      <span class="tree-name">{node.group.name}</span>
+      {#if repoCount(node) === 0}
+        <span class="tree-empty">(empty)</span>
+      {:else}
+        <span class="tree-count">{repoCount(node)}</span>
+      {/if}
+      <div class="tree-actions">
+        <button class="btn-icon" type="button" title="Rename" onclick={() => openRename(node.group)}
+          >✎</button
+        >
+        <button class="btn-icon" type="button" title="Move" onclick={() => openMove(node.group)}
+          >↕</button
+        >
+        <button
+          class="btn-icon btn-danger"
+          type="button"
+          title="Delete"
+          onclick={() => openDelete(node.group)}>×</button
+        >
+      </div>
+    </div>
+    {#if !collapsed.has(node.group.id)}
+      {#each node.children as child (child.group.id)}
+        {@render treeNode(child, depth + 1)}
+      {/each}
+    {/if}
+  </div>
+{/snippet}
 
 <div class="groups-page">
   <header class="page-header">
@@ -141,14 +225,24 @@
   </header>
 
   {#if actionMessage}
-    <div class="action-banner" role="status">{actionMessage}</div>
+    <div class="action-banner" role="status">
+      {actionMessage}
+      {#if actionHint}
+        <p class="error-hint">{actionHint}</p>
+      {/if}
+    </div>
   {/if}
 
   {#if loading}
     <div class="empty-state">Loading groups…</div>
   {:else if error}
-    <div class="empty-state error">{error}</div>
-  {:else if groups.length === 0}
+    <div class="empty-state error">
+      {error}
+      {#if errorHint}
+        <p class="error-hint">{errorHint}</p>
+      {/if}
+    </div>
+  {:else if tree.length === 0}
     <div class="empty-state">
       <p>No groups created yet.</p>
       <button class="btn-primary" type="button" onclick={() => (showCreateDialog = true)}>
@@ -156,43 +250,10 @@
       </button>
     </div>
   {:else}
-    <div class="group-table-wrap">
-      <table class="group-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Parent</th>
-            <th>Repos</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each groups as group (group.id)}
-            <tr>
-              <td class="col-name">{group.name}</td>
-              <td class="col-parent">{parentName(group.parent_id)}</td>
-              <td class="col-count">{group.repo_count}</td>
-              <td class="col-actions">
-                <button
-                  class="btn-icon"
-                  type="button"
-                  title="Rename"
-                  onclick={() => openRename(group)}>✎</button
-                >
-                <button class="btn-icon" type="button" title="Move" onclick={() => openMove(group)}
-                  >↕</button
-                >
-                <button
-                  class="btn-icon btn-danger"
-                  type="button"
-                  title="Delete"
-                  onclick={() => openDelete(group)}>×</button
-                >
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+    <div class="group-tree-wrap">
+      {#each tree as node (node.group.id)}
+        {@render treeNode(node, 0)}
+      {/each}
     </div>
   {/if}
 </div>
@@ -374,56 +435,77 @@
     margin-bottom: var(--space-xl);
   }
 
-  .group-table-wrap {
+  .group-tree-wrap {
     border: 1px solid var(--color-hairline);
     border-radius: var(--radius-lg);
     background: var(--color-surface-card);
     overflow: hidden;
+    padding: var(--space-xs) 0;
   }
 
-  .group-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 14px;
+  .tree-node {
+    font-size: var(--text-body);
   }
 
-  .group-table th {
-    text-align: left;
-    padding: var(--space-sm) var(--space-base);
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--color-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    border-bottom: 1px solid var(--color-hairline);
-    background: var(--color-canvas-soft);
-  }
-
-  .group-table td {
-    padding: var(--space-sm) var(--space-base);
+  .tree-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-base);
     border-bottom: 1px solid var(--color-hairline-soft);
-    vertical-align: middle;
   }
 
-  .group-table tr:last-child td {
+  .tree-node:last-child .tree-row {
     border-bottom: none;
   }
 
-  .col-name {
+  .tree-toggle {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--color-muted);
+    font-size: var(--text-2xs);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .tree-spacer {
+    width: 18px;
+    flex-shrink: 0;
+  }
+
+  .tree-name {
     font-weight: 500;
     color: var(--color-ink);
-  }
-  .col-parent {
-    color: var(--color-muted);
-  }
-  .col-count {
-    color: var(--color-body);
-  }
-  .col-actions {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
 
+  .tree-empty {
+    font-size: var(--text-sm);
+    color: var(--color-muted-soft);
+    flex-shrink: 0;
+  }
+
+  .tree-count {
+    font-size: var(--text-sm);
+    color: var(--color-muted);
+    flex-shrink: 0;
+  }
+
+  .tree-actions {
+    display: flex;
+    gap: var(--space-xxs);
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+
   .btn-icon {
-    margin-right: var(--space-xxs);
+    margin-right: 0;
   }
 </style>
