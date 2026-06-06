@@ -3,12 +3,13 @@
   import { getWorkspaceHealth, getRepositoryHealth, refreshHealth } from "$lib/types/health";
   import { onMount } from "svelte";
   import { resolve } from "$app/paths";
-  import { handleError, type HandledError } from "$lib/utils/error-handling";
+  import { handleError, type ActionFeedback } from "$lib/utils/error-handling";
+  import PageError from "$lib/components/PageError.svelte";
 
   let health = $state<WorkspaceHealthDto | null>(null);
   let loading = $state(true);
   let refreshing = $state(false);
-  let pageError = $state<HandledError | null>(null);
+  let pageError = $state<ActionFeedback | null>(null);
   let expandedRepo = $state<string | null>(null);
   let repoDetail = $state<RepositoryHealthDto | null>(null);
   let detailLoading = $state(false);
@@ -58,8 +59,8 @@
     }
   }
 
-  function scoreDisplay(score: number): string {
-    if (score < 0) return "N/A";
+  function scoreDisplay(score: number | null): string {
+    if (score == null) return "N/A";
     return `${Math.round(score)}%`;
   }
 
@@ -86,12 +87,7 @@
   {#if loading}
     <div class="empty-state">Evaluating workspace health…</div>
   {:else if pageError}
-    <div class="empty-state error">
-      {pageError.message}
-      {#if pageError.hint}
-        <p class="error-hint">{pageError.hint}</p>
-      {/if}
-    </div>
+    <PageError error={pageError} />
   {:else if health}
     <section class="stats-bar" aria-label="Health statistics">
       <div class="stat-card stat-score">
@@ -187,41 +183,12 @@
     max-width: 1200px;
   }
 
-  .page-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--space-lg);
-    margin-bottom: var(--space-xl);
-  }
-
   .stats-bar {
-    display: grid;
     grid-template-columns: repeat(5, 1fr);
-    gap: var(--space-base);
-    margin-bottom: var(--space-xl);
-  }
-
-  .stat-card {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-xxs);
-    padding: var(--space-base) var(--space-md);
-    border: 1px solid var(--color-hairline);
-    border-radius: var(--radius-lg);
-    background: var(--color-surface-card);
   }
 
   .stat-score {
     border-color: var(--color-primary);
-  }
-
-  .stat-value {
-    font-size: var(--text-3xl);
-    font-weight: 400;
-    color: var(--color-ink);
-    letter-spacing: -0.03em;
-    line-height: 1;
   }
 
   .stat-value.stat-healthy {
@@ -232,44 +199,6 @@
   }
   .stat-value.stat-critical {
     color: var(--color-error);
-  }
-
-  .stat-label {
-    font-size: var(--text-caption);
-    color: var(--color-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  .repo-table-wrap {
-    border: 1px solid var(--color-hairline);
-    border-radius: var(--radius-lg);
-    background: var(--color-surface-card);
-    overflow: hidden;
-  }
-
-  .repo-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--text-body);
-  }
-
-  .repo-table th {
-    text-align: left;
-    padding: var(--space-sm) var(--space-base);
-    font-size: var(--text-sm);
-    font-weight: 600;
-    color: var(--color-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    border-bottom: 1px solid var(--color-hairline);
-    background: var(--color-canvas-soft);
-  }
-
-  .repo-table td {
-    padding: var(--space-sm) var(--space-base);
-    border-bottom: 1px solid var(--color-hairline-soft);
-    vertical-align: middle;
   }
 
   .repo-row {

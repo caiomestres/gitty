@@ -37,7 +37,7 @@ pub struct RepositoryHealth {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkspaceHealth {
-    pub score: f64,
+    pub score: Option<f64>,
     pub total_repos: usize,
     pub critical_count: usize,
     pub warning_count: usize,
@@ -70,6 +70,44 @@ impl Default for HealthThresholds {
 // Health Check Functions
 // ---------------------------------------------------------------------------
 
+/// Evaluate a numeric value against warning/critical thresholds.
+fn threshold_check(
+    check_id: &str,
+    value: usize,
+    warning: usize,
+    critical: usize,
+    fmt_msg: impl Fn(usize) -> String,
+    fmt_threshold: impl Fn(&str, usize) -> String,
+) -> CheckResult {
+    if value >= critical {
+        CheckResult {
+            check_id: check_id.into(),
+            severity: CheckSeverity::Critical,
+            message: format!(
+                "{} (critical threshold: {})",
+                fmt_msg(value),
+                fmt_threshold("critical", critical)
+            ),
+        }
+    } else if value >= warning {
+        CheckResult {
+            check_id: check_id.into(),
+            severity: CheckSeverity::Warning,
+            message: format!(
+                "{} (warning threshold: {})",
+                fmt_msg(value),
+                fmt_threshold("warning", warning)
+            ),
+        }
+    } else {
+        CheckResult {
+            check_id: check_id.into(),
+            severity: CheckSeverity::Healthy,
+            message: fmt_msg(value),
+        }
+    }
+}
+
 fn check_stale(
     status: &RepositoryStatus,
     thresholds: &HealthThresholds,
@@ -97,33 +135,16 @@ fn check_stale(
         }
     };
 
-    let age_days = (now - commit_date).whole_days().unsigned_abs() as u32;
+    let age_days = (now - commit_date).whole_days().unsigned_abs() as usize;
 
-    if age_days >= thresholds.stale_days_critical {
-        CheckResult {
-            check_id: "stale".into(),
-            severity: CheckSeverity::Critical,
-            message: format!(
-                "HEAD is {age_days} days old (critical threshold: {} days)",
-                thresholds.stale_days_critical
-            ),
-        }
-    } else if age_days >= thresholds.stale_days_warning {
-        CheckResult {
-            check_id: "stale".into(),
-            severity: CheckSeverity::Warning,
-            message: format!(
-                "HEAD is {age_days} days old (warning threshold: {} days)",
-                thresholds.stale_days_warning
-            ),
-        }
-    } else {
-        CheckResult {
-            check_id: "stale".into(),
-            severity: CheckSeverity::Healthy,
-            message: format!("HEAD is {age_days} days old"),
-        }
-    }
+    threshold_check(
+        "stale",
+        age_days,
+        thresholds.stale_days_warning as usize,
+        thresholds.stale_days_critical as usize,
+        |days| format!("HEAD is {days} days old"),
+        |_, t| format!("{t} days"),
+    )
 }
 
 fn check_diverged(status: &RepositoryStatus, thresholds: &HealthThresholds) -> CheckResult {
@@ -138,33 +159,14 @@ fn check_diverged(status: &RepositoryStatus, thresholds: &HealthThresholds) -> C
         }
     };
 
-    let behind = upstream.behind;
-
-    if behind >= thresholds.diverged_critical {
-        CheckResult {
-            check_id: "diverged".into(),
-            severity: CheckSeverity::Critical,
-            message: format!(
-                "{behind} commits behind upstream (critical threshold: {})",
-                thresholds.diverged_critical
-            ),
-        }
-    } else if behind >= thresholds.diverged_warning {
-        CheckResult {
-            check_id: "diverged".into(),
-            severity: CheckSeverity::Warning,
-            message: format!(
-                "{behind} commits behind upstream (warning threshold: {})",
-                thresholds.diverged_warning
-            ),
-        }
-    } else {
-        CheckResult {
-            check_id: "diverged".into(),
-            severity: CheckSeverity::Healthy,
-            message: format!("{behind} commits behind upstream"),
-        }
-    }
+    threshold_check(
+        "diverged",
+        upstream.behind,
+        thresholds.diverged_warning,
+        thresholds.diverged_critical,
+        |behind| format!("{behind} commits behind upstream"),
+        |_, t| t.to_string(),
+    )
 }
 
 fn check_dirty(status: &RepositoryStatus) -> CheckResult {
@@ -217,16 +219,15 @@ pub fn evaluate_checks(
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Collect `RepositoryStatus` for each repository, silently skipping
-/// repos whose status cannot be read.
+/// Collect `RepositoryStatus` for each repository in parallel, silently
+/// skipping repos whose status cannot be read.
 pub fn collect_statuses(repos: &[&Repository]) -> HashMap<Uuid, RepositoryStatus> {
-    let mut statuses = HashMap::new();
-    for repo in repos {
-        if let Ok(s) = read::read_status(&repo.path) {
-            statuses.insert(repo.id, s);
-        }
-    }
-    statuses
+    use rayon::prelude::*;
+
+    repos
+        .par_iter()
+        .filter_map(|repo| read::read_status(&repo.path).ok().map(|s| (repo.id, s)))
+        .collect()
 }
 
 /// Filter a repository list to only Active repos.
@@ -272,7 +273,7 @@ pub fn evaluate_repository(
 /// Evaluate a set of repositories. Repos whose status is absent from
 /// `statuses` are silently skipped.
 /// Score = (repos not critical / total evaluated) * 100.
-/// Empty input → score is -1.0 (displayed as N/A).
+/// Empty input → score is `None`.
 pub fn evaluate_workspace(
     repos: &[&Repository],
     statuses: &HashMap<Uuid, RepositoryStatus>,
@@ -280,7 +281,7 @@ pub fn evaluate_workspace(
 ) -> WorkspaceHealth {
     if repos.is_empty() {
         return WorkspaceHealth {
-            score: -1.0,
+            score: None,
             total_repos: 0,
             critical_count: 0,
             warning_count: 0,
@@ -312,9 +313,9 @@ pub fn evaluate_workspace(
     let total = repo_healths.len();
     let not_critical = total - critical_count;
     let score = if total > 0 {
-        (not_critical as f64 / total as f64) * 100.0
+        Some((not_critical as f64 / total as f64) * 100.0)
     } else {
-        -1.0
+        None
     };
 
     WorkspaceHealth {
@@ -529,7 +530,7 @@ mod tests {
         let health = evaluate_workspace(&repo_refs, &statuses, &thresholds);
         assert_eq!(health.total_repos, 10);
         assert_eq!(health.critical_count, 3);
-        assert!((health.score - 70.0).abs() < 0.01);
+        assert!((health.score.unwrap() - 70.0).abs() < 0.01);
     }
 
     #[test]
@@ -549,7 +550,7 @@ mod tests {
             repos.iter().map(|r| (r.id, fresh_status())).collect();
 
         let health = evaluate_workspace(&repo_refs, &statuses, &thresholds);
-        assert!((health.score - 100.0).abs() < 0.01);
+        assert!((health.score.unwrap() - 100.0).abs() < 0.01);
         assert_eq!(health.healthy_count, 5);
     }
 
@@ -579,7 +580,7 @@ mod tests {
         let statuses: HashMap<Uuid, RepositoryStatus> = HashMap::new();
 
         let health = evaluate_workspace(&repo_refs, &statuses, &thresholds);
-        assert!(health.score < 0.0);
+        assert!(health.score.is_none());
         assert_eq!(health.total_repos, 0);
     }
 

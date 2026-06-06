@@ -55,7 +55,7 @@ mod tests {
 
     fn sample_health() -> WorkspaceHealth {
         WorkspaceHealth {
-            score: 80.0,
+            score: Some(80.0),
             total_repos: 10,
             critical_count: 2,
             warning_count: 3,
@@ -71,7 +71,7 @@ mod tests {
         save(&health, dir.path()).unwrap();
 
         let cached = load(dir.path()).unwrap();
-        assert!((cached.workspace_health.score - 80.0).abs() < 0.01);
+        assert!((cached.workspace_health.score.unwrap() - 80.0).abs() < 0.01);
         assert_eq!(cached.workspace_health.total_repos, 10);
         assert!(!cached.last_evaluated.is_empty());
     }
@@ -103,11 +103,11 @@ mod tests {
         save(&sample_health(), dir.path()).unwrap();
 
         let mut h2 = sample_health();
-        h2.score = 50.0;
+        h2.score = Some(50.0);
         save(&h2, dir.path()).unwrap();
 
         let cached = load(dir.path()).unwrap();
-        assert!((cached.workspace_health.score - 50.0).abs() < 0.01);
+        assert!((cached.workspace_health.score.unwrap() - 50.0).abs() < 0.01);
     }
 
     #[test]

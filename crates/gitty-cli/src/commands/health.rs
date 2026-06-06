@@ -58,11 +58,13 @@ pub fn cmd_health(target: Option<&str>) -> Result<()> {
 }
 
 fn print_workspace_health(wh: &gitty_core::WorkspaceHealth) {
-    if wh.score < 0.0 {
-        println!("Workspace Health: N/A (no active repositories)");
-        return;
+    match wh.score {
+        None => {
+            println!("Workspace Health: N/A (no active repositories)");
+            return;
+        }
+        Some(score) => println!("Workspace Health: {score:.0}%"),
     }
-    println!("Workspace Health: {:.0}%", wh.score);
     println!(
         "  {} total | {} healthy | {} warning | {} critical\n",
         wh.total_repos, wh.healthy_count, wh.warning_count, wh.critical_count

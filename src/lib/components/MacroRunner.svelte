@@ -8,13 +8,14 @@
     JobDto,
     RepoDto,
   } from "$lib/types/workspace";
-  import { handleError } from "$lib/utils/error-handling";
+  import { handleError, type ActionFeedback } from "$lib/utils/error-handling";
+  import Dialog from "./Dialog.svelte";
 
   interface Props {
     macro: MacroDto;
     onComplete: (jobs: JobDto[]) => void;
     onCancel: () => void;
-    onError: (msg: string) => void;
+    onError: (feedback: ActionFeedback) => void;
   }
 
   let { macro: runTarget, onComplete, onCancel, onError }: Props = $props();
@@ -69,7 +70,7 @@
     } catch (e) {
       const handled = handleError(e);
       if (handled) {
-        onError(handled.message);
+        onError(handled);
       }
     } finally {
       running = false;
@@ -84,90 +85,77 @@
   );
 </script>
 
-<div
-  class="dialog-backdrop"
-  role="presentation"
-  onclick={onCancel}
-  onkeydown={(e) => e.key === "Escape" && onCancel()}
+<Dialog
+  title={`Run "${runTarget.name}"`}
+  description="Select which repositories to run this macro against."
+  wide={true}
+  onClose={onCancel}
 >
-  <div
-    class="dialog dialog-wide"
-    role="dialog"
-    aria-modal="true"
-    tabindex="-1"
-    onclick={(e) => e.stopPropagation()}
-    onkeydown={(e) => e.stopPropagation()}
-  >
-    <h3 class="dialog-title">Run "{runTarget.name}"</h3>
-    <p class="dialog-desc">Select which repositories to run this macro against.</p>
-
-    <div class="selection-options">
-      <label class="radio-label">
-        <input type="radio" name="sel" value="all" bind:group={selectionKind} />
-        All Repositories
-      </label>
-      <label class="radio-label">
-        <input type="radio" name="sel" value="group" bind:group={selectionKind} />
-        By Group
-      </label>
-      {#if selectionKind === "group"}
-        <select class="field-input sel-picker" bind:value={selGroupId}>
-          <option value="">— Select group —</option>
-          {#each groups as g (g.id)}
-            <option value={g.id}>{g.name}</option>
-          {/each}
-        </select>
-      {/if}
-      <label class="radio-label">
-        <input type="radio" name="sel" value="tag" bind:group={selectionKind} />
-        By Tag
-      </label>
-      {#if selectionKind === "tag"}
-        <select class="field-input sel-picker" bind:value={selTagName}>
-          <option value="">— Select tag —</option>
-          {#each tags as t (t.name)}
-            <option value={t.name}>{t.name} ({t.repo_count})</option>
-          {/each}
-        </select>
-      {/if}
-      <label class="radio-label">
-        <input type="radio" name="sel" value="multiple" bind:group={selectionKind} />
-        Individual Repositories
-      </label>
-      {#if selectionKind === "multiple"}
-        <div class="repo-checklist">
-          {#each allRepos as repo (repo.id)}
-            <label class="check-label">
-              <input
-                type="checkbox"
-                value={repo.id}
-                checked={selRepoIds.includes(repo.id)}
-                onchange={() => {
-                  if (selRepoIds.includes(repo.id)) {
-                    selRepoIds = selRepoIds.filter((id) => id !== repo.id);
-                  } else {
-                    selRepoIds = [...selRepoIds, repo.id];
-                  }
-                }}
-              />
-              {repo.name}
-            </label>
-          {/each}
-          {#if allRepos.length === 0}
-            <span class="sel-empty">No active repositories found.</span>
-          {/if}
-        </div>
-      {/if}
-    </div>
-
-    <div class="dialog-actions">
-      <button class="btn-secondary" type="button" onclick={onCancel}>Cancel</button>
-      <button class="btn-primary" type="button" onclick={handleRun} disabled={runDisabled}>
-        {running ? "Executing…" : "Execute"}
-      </button>
-    </div>
+  <div class="selection-options">
+    <label class="radio-label">
+      <input type="radio" name="sel" value="all" bind:group={selectionKind} />
+      All Repositories
+    </label>
+    <label class="radio-label">
+      <input type="radio" name="sel" value="group" bind:group={selectionKind} />
+      By Group
+    </label>
+    {#if selectionKind === "group"}
+      <select class="field-input sel-picker" bind:value={selGroupId}>
+        <option value="">— Select group —</option>
+        {#each groups as g (g.id)}
+          <option value={g.id}>{g.name}</option>
+        {/each}
+      </select>
+    {/if}
+    <label class="radio-label">
+      <input type="radio" name="sel" value="tag" bind:group={selectionKind} />
+      By Tag
+    </label>
+    {#if selectionKind === "tag"}
+      <select class="field-input sel-picker" bind:value={selTagName}>
+        <option value="">— Select tag —</option>
+        {#each tags as t (t.name)}
+          <option value={t.name}>{t.name} ({t.repo_count})</option>
+        {/each}
+      </select>
+    {/if}
+    <label class="radio-label">
+      <input type="radio" name="sel" value="multiple" bind:group={selectionKind} />
+      Individual Repositories
+    </label>
+    {#if selectionKind === "multiple"}
+      <div class="repo-checklist">
+        {#each allRepos as repo (repo.id)}
+          <label class="check-label">
+            <input
+              type="checkbox"
+              value={repo.id}
+              checked={selRepoIds.includes(repo.id)}
+              onchange={() => {
+                if (selRepoIds.includes(repo.id)) {
+                  selRepoIds = selRepoIds.filter((id) => id !== repo.id);
+                } else {
+                  selRepoIds = [...selRepoIds, repo.id];
+                }
+              }}
+            />
+            {repo.name}
+          </label>
+        {/each}
+        {#if allRepos.length === 0}
+          <span class="sel-empty">No active repositories found.</span>
+        {/if}
+      </div>
+    {/if}
   </div>
-</div>
+  {#snippet actions()}
+    <button class="btn-secondary" type="button" onclick={onCancel}>Cancel</button>
+    <button class="btn-primary" type="button" onclick={handleRun} disabled={runDisabled}>
+      {running ? "Executing…" : "Execute"}
+    </button>
+  {/snippet}
+</Dialog>
 
 <style>
   .selection-options {

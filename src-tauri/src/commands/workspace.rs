@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use gitty_core::git::read::{self, ChangeStatus};
-use gitty_core::git::write::{BatchOp, GitBinary, GitResult, RepoOutcome};
+use gitty_core::git::write::{BatchOp, GitResult, RepoOutcome};
 use gitty_core::repository::RepositoryState;
 use gitty_core::scan_and_reconcile;
 use gitty_core::ReconcileReport;
@@ -11,7 +11,7 @@ use tauri::State;
 use crate::error::AppError;
 use crate::state::AppState;
 
-use super::{find_repo, repo_to_dto, RepoDto};
+use super::{find_active_repo, find_repo, repo_to_dto, RepoDto};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChangedFileDto {
@@ -249,7 +249,10 @@ pub fn remove_scan_root(state: State<'_, AppState>, path: String) -> Result<(), 
             .scan_roots
             .retain(|sr| sr.path != path && sr.path != canonical);
         if config.workspace.scan_roots.len() == before {
-            return Err(AppError::new("not_found", format!("scan root not found: {path}")));
+            return Err(AppError::new(
+                "not_found",
+                format!("scan root not found: {path}"),
+            ));
         }
         Ok(())
     })
@@ -259,28 +262,28 @@ pub fn remove_scan_root(state: State<'_, AppState>, path: String) -> Result<(), 
 // Commands — git operations (single repo)
 // ---------------------------------------------------------------------------
 
-#[tauri::command]
-pub fn fetch_repo(state: State<'_, AppState>, repo_id: String) -> Result<OpResultDto, AppError> {
+fn run_single_repo_op(
+    state: &AppState,
+    repo_id: &str,
+    op: impl FnOnce(&gitty_core::git::write::GitBinary, &Path) -> gitty_core::Result<GitResult>,
+) -> Result<OpResultDto, AppError> {
+    let git = state.git()?;
     let config = state.config();
-    let repo = find_repo(&config, &repo_id)?;
-    if repo.state == RepositoryState::Missing {
-        return Err(AppError::new("repository_missing", "repository path not found"));
-    }
-    let git = GitBinary::resolve()?;
-    let result = git.fetch(&repo.path)?;
+    let repo = find_active_repo(&config, repo_id)?;
+    let path = repo.path.clone();
+    drop(config);
+    let result = op(&git, &path)?;
     Ok(git_result_to_dto(result))
 }
 
 #[tauri::command]
+pub fn fetch_repo(state: State<'_, AppState>, repo_id: String) -> Result<OpResultDto, AppError> {
+    run_single_repo_op(&state, &repo_id, |git, path| git.fetch(path))
+}
+
+#[tauri::command]
 pub fn pull_repo(state: State<'_, AppState>, repo_id: String) -> Result<OpResultDto, AppError> {
-    let config = state.config();
-    let repo = find_repo(&config, &repo_id)?;
-    if repo.state == RepositoryState::Missing {
-        return Err(AppError::new("repository_missing", "repository path not found"));
-    }
-    let git = GitBinary::resolve()?;
-    let result = git.pull(&repo.path)?;
-    Ok(git_result_to_dto(result))
+    run_single_repo_op(&state, &repo_id, |git, path| git.pull(path))
 }
 
 #[tauri::command]
@@ -289,14 +292,7 @@ pub fn checkout_repo(
     repo_id: String,
     branch: String,
 ) -> Result<OpResultDto, AppError> {
-    let config = state.config();
-    let repo = find_repo(&config, &repo_id)?;
-    if repo.state == RepositoryState::Missing {
-        return Err(AppError::new("repository_missing", "repository path not found"));
-    }
-    let git = GitBinary::resolve()?;
-    let result = git.checkout(&repo.path, &branch)?;
-    Ok(git_result_to_dto(result))
+    run_single_repo_op(&state, &repo_id, |git, path| git.checkout(path, &branch))
 }
 
 // ---------------------------------------------------------------------------
@@ -305,16 +301,20 @@ pub fn checkout_repo(
 
 #[tauri::command]
 pub fn fetch_all(state: State<'_, AppState>) -> Result<BulkResultDto, AppError> {
+    let git = state.git()?;
     let config = state.config();
-    let git = GitBinary::resolve()?;
-    let batch = git.run_batch_locked(&config.workspace.repositories, &BatchOp::Fetch)?;
+    let repos = config.workspace.repositories.clone();
+    drop(config);
+    let batch = git.run_batch_locked(&repos, &BatchOp::Fetch)?;
     Ok(batch_to_dto(batch))
 }
 
 #[tauri::command]
 pub fn pull_all(state: State<'_, AppState>) -> Result<BulkResultDto, AppError> {
+    let git = state.git()?;
     let config = state.config();
-    let git = GitBinary::resolve()?;
-    let batch = git.run_batch_locked(&config.workspace.repositories, &BatchOp::Pull)?;
+    let repos = config.workspace.repositories.clone();
+    drop(config);
+    let batch = git.run_batch_locked(&repos, &BatchOp::Pull)?;
     Ok(batch_to_dto(batch))
 }

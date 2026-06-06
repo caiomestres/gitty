@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use gitty_core::git::write::GitBinary;
 use gitty_core::Config;
 
 use tauri::Manager;
@@ -10,18 +11,27 @@ use crate::error::AppError;
 pub struct AppState {
     config: Mutex<Config>,
     config_path: PathBuf,
+    git: Option<GitBinary>,
 }
 
 impl AppState {
     pub fn new(config: Config, config_path: PathBuf) -> Self {
+        let git = GitBinary::resolve().ok();
         Self {
             config: Mutex::new(config),
             config_path,
+            git,
         }
     }
 
     pub fn config(&self) -> std::sync::MutexGuard<'_, Config> {
         self.config.lock().expect("config mutex poisoned")
+    }
+
+    pub fn git(&self) -> Result<GitBinary, AppError> {
+        self.git
+            .clone()
+            .ok_or_else(|| AppError::from(gitty_core::CoreError::GitNotFound))
     }
 
     pub fn config_dir(&self) -> Result<PathBuf, AppError> {

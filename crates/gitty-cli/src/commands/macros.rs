@@ -31,7 +31,7 @@ pub fn cmd_macro(action: MacroAction) -> Result<()> {
             let mut config = Config::load().context("loading config")?;
             let id = config
                 .workspace
-                .define_macro(&name, parsed_steps)
+                .define_macro(&name, parsed_steps, std::collections::HashMap::new())
                 .context("defining macro")?;
             config.save().context("saving config")?;
             println!("Defined macro '{name}' ({id}) with {} steps", steps.len());

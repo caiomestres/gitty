@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
-use gitty_core::git::write::GitBinary;
 use gitty_core::job::JobStatus;
-use gitty_core::macro_def::{GitOp, ShellStep, Step, StepKind};
+use gitty_core::macro_def::{GitOp, RetryConfig, ShellStep, Step, StepKind};
 use gitty_core::selection::Selection;
 use gitty_core::{execute_macro, CoreError};
 use serde::{Deserialize, Serialize};
@@ -31,6 +30,14 @@ pub struct StepDto {
     condition: Option<String>,
     rollback: Option<Box<StepDto>>,
     confirm: bool,
+    #[serde(default)]
+    retry: Option<RetryDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RetryDto {
+    max_attempts: u32,
+    backoff_seconds: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,6 +110,10 @@ fn step_to_dto(step: &Step) -> StepDto {
         condition: step.condition.clone(),
         rollback: step.rollback.as_ref().map(|r| Box::new(step_to_dto(r))),
         confirm: step.confirm,
+        retry: step.retry.as_ref().map(|r| RetryDto {
+            max_attempts: r.max_attempts,
+            backoff_seconds: r.backoff_seconds,
+        }),
     }
 }
 
@@ -113,10 +124,15 @@ fn step_dto_to_core(dto: StepDto) -> Result<Step, AppError> {
                 "fetch" => GitOp::Fetch,
                 "pull" => GitOp::Pull,
                 "checkout" => GitOp::Checkout {
-                    branch: branch.ok_or_else(|| AppError::new("invalid_step", "checkout step requires a branch"))?,
+                    branch: branch.ok_or_else(|| {
+                        AppError::new("invalid_step", "checkout step requires a branch")
+                    })?,
                 },
                 other => {
-                    return Err(AppError::new("invalid_step", format!("unknown git operation: {other}")))
+                    return Err(AppError::new(
+                        "invalid_step",
+                        format!("unknown git operation: {other}"),
+                    ))
                 }
             };
             StepKind::GitOp(git_op)
@@ -134,7 +150,10 @@ fn step_dto_to_core(dto: StepDto) -> Result<Step, AppError> {
         condition: dto.condition,
         rollback,
         confirm: dto.confirm,
-        retry: None,
+        retry: dto.retry.map(|r| RetryConfig {
+            max_attempts: r.max_attempts,
+            backoff_seconds: r.backoff_seconds,
+        }),
     })
 }
 
@@ -211,11 +230,39 @@ pub fn define_macro(
         .collect::<Result<Vec<_>, _>>()?;
 
     state.with_config_write(|config| {
-        let id = config.workspace.define_macro(&name, core_steps)?;
-        if let Some(m) = config.workspace.macros.iter_mut().find(|m| m.id == id) {
-            m.variables = variables;
-        }
-        let m = config.workspace.find_macro(&id.to_string()).unwrap();
+        let id = config
+            .workspace
+            .define_macro(&name, core_steps, variables)?;
+        let m = config
+            .workspace
+            .find_macro_by_id(id)
+            .expect("just-created macro must exist");
+        Ok(macro_to_dto(m))
+    })
+}
+
+#[tauri::command]
+pub fn update_macro(
+    state: State<'_, AppState>,
+    id: String,
+    name: String,
+    steps: Vec<StepDto>,
+    variables: HashMap<String, String>,
+) -> Result<MacroDto, AppError> {
+    let uuid = parse_uuid(&id)?;
+    let core_steps = steps
+        .into_iter()
+        .map(step_dto_to_core)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    state.with_config_write(|config| {
+        config
+            .workspace
+            .update_macro(uuid, &name, core_steps, variables)?;
+        let m = config
+            .workspace
+            .find_macro_by_id(uuid)
+            .ok_or_else(|| AppError::from(CoreError::MacroNotFound(id.clone())))?;
         Ok(macro_to_dto(m))
     })
 }
@@ -235,26 +282,38 @@ pub fn run_macro(
     name_or_id: String,
     selection: SelectionDto,
 ) -> Result<Vec<JobDto>, AppError> {
-    let config = state.config();
-    let macro_def = config
-        .workspace
-        .find_macro(&name_or_id)
-        .ok_or_else(|| AppError::from(CoreError::MacroNotFound(name_or_id)))?
-        .clone();
+    let git = state.git()?;
 
-    let sel = selection_to_core(selection)?;
-    let repos = sel.resolve(&config.workspace);
-    let git = GitBinary::resolve()?;
-    let jobs = execute_macro(&macro_def, &repos, &git);
+    let (macro_def, repos, repo_names) = {
+        let config = state.config();
+        let macro_def = config
+            .workspace
+            .find_macro(&name_or_id)
+            .ok_or_else(|| AppError::from(CoreError::MacroNotFound(name_or_id)))?
+            .clone();
+        let sel = selection_to_core(selection)?;
+        let repos: Vec<_> = sel
+            .resolve(&config.workspace)
+            .into_iter()
+            .cloned()
+            .collect();
+        let repo_names: std::collections::HashMap<uuid::Uuid, String> = repos
+            .iter()
+            .map(|r| (r.id, r.display_name().to_string()))
+            .collect();
+        (macro_def, repos, repo_names)
+    };
+
+    let repo_refs: Vec<_> = repos.iter().collect();
+    let jobs = execute_macro(&macro_def, &repo_refs, &git);
 
     Ok(jobs
         .iter()
         .map(|job| {
             let (status, error) = job_status_str(&job.status);
-            let rn = config
-                .workspace
-                .find_by_id(job.repo_id)
-                .map(|r| r.display_name().to_string())
+            let rn = repo_names
+                .get(&job.repo_id)
+                .cloned()
                 .unwrap_or_else(|| job.repo_id.to_string());
 
             JobDto {
@@ -328,6 +387,7 @@ mod tests {
             condition: None,
             rollback: None,
             confirm: false,
+            retry: None,
         };
         assert!(step_dto_to_core(dto).is_err());
     }

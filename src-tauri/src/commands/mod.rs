@@ -49,3 +49,14 @@ pub fn find_repo<'a>(config: &'a Config, id: &str) -> Result<&'a Repository, App
         .find_by_id(uuid)
         .ok_or_else(|| AppError::from(gitty_core::CoreError::RepositoryNotFound(uuid)))
 }
+
+pub fn find_active_repo<'a>(config: &'a Config, id: &str) -> Result<&'a Repository, AppError> {
+    let repo = find_repo(config, id)?;
+    if repo.state == RepositoryState::Missing {
+        return Err(AppError::new(
+            "repository_missing",
+            "repository path not found",
+        ));
+    }
+    Ok(repo)
+}

@@ -1,13 +1,14 @@
 <script lang="ts">
   import type { GroupedChangesDto, TimeWindow, Grouping } from "$lib/types/changes";
   import { getChanges } from "$lib/types/changes";
-  import { handleError, type HandledError } from "$lib/utils/error-handling";
+  import { handleError, type ActionFeedback } from "$lib/utils/error-handling";
+  import PageError from "$lib/components/PageError.svelte";
   import { onMount } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
 
   let data = $state<GroupedChangesDto | null>(null);
   let loading = $state(true);
-  let pageError = $state<HandledError | null>(null);
+  let pageError = $state<ActionFeedback | null>(null);
   let window = $state<TimeWindow>("week");
   let grouping = $state<Grouping>("repository");
   let allBranchesRepos = new SvelteSet<string>();
@@ -129,12 +130,7 @@
   {#if loading}
     <div class="empty-state">Scanning commits…</div>
   {:else if pageError}
-    <div class="empty-state error">
-      {pageError.message}
-      {#if pageError.hint}
-        <p class="error-hint">{pageError.hint}</p>
-      {/if}
-    </div>
+    <PageError error={pageError} />
   {:else if !data || data.groups.length === 0}
     <div class="empty-state">
       <p>No commits found in the selected time window.</p>
@@ -335,9 +331,5 @@
   .commit-meta {
     color: var(--color-muted-soft);
     font-size: var(--text-sm);
-  }
-
-  .mono {
-    font-family: var(--font-mono);
   }
 </style>

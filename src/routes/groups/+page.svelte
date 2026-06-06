@@ -1,42 +1,37 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import { listen } from "@tauri-apps/api/event";
   import { SvelteSet } from "svelte/reactivity";
   import type { GroupDto, GroupTreeNodeDto } from "$lib/types/workspace";
-  import { handleError, type HandledError } from "$lib/utils/error-handling";
-  import ErrorBanner from "$lib/components/ErrorBanner.svelte";
+  import { handleError, success, type ActionFeedback } from "$lib/utils/error-handling";
+  import { onConfigChanged } from "$lib/utils/config-events";
+  import FeedbackBanner from "$lib/components/FeedbackBanner.svelte";
+  import PageError from "$lib/components/PageError.svelte";
+  import Dialog from "$lib/components/Dialog.svelte";
 
   let groups = $state<GroupDto[]>([]);
   let tree = $state<GroupTreeNodeDto[]>([]);
   let collapsed = new SvelteSet<string>();
   let loading = $state(true);
-  let pageError = $state<HandledError | null>(null);
-  let actionFeedback = $state<HandledError | null>(null);
+  let pageError = $state<ActionFeedback | null>(null);
+  let actionFeedback = $state<ActionFeedback | null>(null);
 
-  let showCreateDialog = $state(false);
-  let createName = $state("");
-  let createParentId = $state<string | null>(null);
-  let creating = $state(false);
+  type DialogState =
+    | { kind: "none" }
+    | { kind: "create"; name: string; parentId: string | null; saving: boolean }
+    | { kind: "rename"; id: string; name: string }
+    | { kind: "delete"; id: string; name: string }
+    | { kind: "move"; id: string; parentId: string | null };
 
-  let showRenameDialog = $state(false);
-  let renameId = $state("");
-  let renameName = $state("");
+  let dialog = $state<DialogState>({ kind: "none" });
 
-  let showDeleteDialog = $state(false);
-  let deleteId = $state("");
-  let deleteName = $state("");
-
-  let showMoveDialog = $state(false);
-  let moveId = $state("");
-  let moveParentId = $state<string | null>(null);
+  const createDialog = $derived(dialog.kind === "create" ? dialog : null);
+  const renameDialog = $derived(dialog.kind === "rename" ? dialog : null);
+  const deleteDialog = $derived(dialog.kind === "delete" ? dialog : null);
+  const moveDialog = $derived(dialog.kind === "move" ? dialog : null);
 
   $effect(() => {
     loadGroups();
-    let unlisten: (() => void) | undefined;
-    listen("config-changed", () => loadGroups()).then((fn) => {
-      unlisten = fn;
-    });
-    return () => unlisten?.();
+    return onConfigChanged(() => loadGroups());
   });
 
   async function loadGroups() {
@@ -67,39 +62,35 @@
   }
 
   async function handleCreate() {
-    if (!createName.trim()) return;
-    creating = true;
+    if (dialog.kind !== "create" || !dialog.name.trim()) return;
+    dialog = { ...dialog, saving: true };
     actionFeedback = null;
     try {
       await invoke("create_group", {
-        name: createName.trim(),
-        parentId: createParentId,
+        name: dialog.name.trim(),
+        parentId: dialog.parentId,
       });
-      actionFeedback = { message: `Created group "${createName.trim()}"` };
-      showCreateDialog = false;
-      createName = "";
-      createParentId = null;
+      actionFeedback = success(`Created group "${dialog.name.trim()}"`);
+      dialog = { kind: "none" };
       await loadGroups();
     } catch (e) {
       actionFeedback = handleError(e);
     } finally {
-      creating = false;
+      if (dialog.kind === "create") dialog = { ...dialog, saving: false };
     }
   }
 
   function openRename(group: GroupDto) {
-    renameId = group.id;
-    renameName = group.name;
-    showRenameDialog = true;
+    dialog = { kind: "rename", id: group.id, name: group.name };
   }
 
   async function handleRename() {
-    if (!renameName.trim()) return;
+    if (dialog.kind !== "rename" || !dialog.name.trim()) return;
     actionFeedback = null;
     try {
-      await invoke("rename_group", { id: renameId, newName: renameName.trim() });
-      actionFeedback = { message: `Renamed group to "${renameName.trim()}"` };
-      showRenameDialog = false;
+      await invoke("rename_group", { id: dialog.id, newName: dialog.name.trim() });
+      actionFeedback = success(`Renamed group to "${dialog.name.trim()}"`);
+      dialog = { kind: "none" };
       await loadGroups();
     } catch (e) {
       actionFeedback = handleError(e);
@@ -107,17 +98,16 @@
   }
 
   function openDelete(group: GroupDto) {
-    deleteId = group.id;
-    deleteName = group.name;
-    showDeleteDialog = true;
+    dialog = { kind: "delete", id: group.id, name: group.name };
   }
 
   async function handleDelete() {
+    if (dialog.kind !== "delete") return;
     actionFeedback = null;
     try {
-      await invoke("delete_group", { id: deleteId });
-      actionFeedback = { message: `Deleted group "${deleteName}"` };
-      showDeleteDialog = false;
+      await invoke("delete_group", { id: dialog.id });
+      actionFeedback = success(`Deleted group "${dialog.name}"`);
+      dialog = { kind: "none" };
       await loadGroups();
     } catch (e) {
       actionFeedback = handleError(e);
@@ -125,17 +115,16 @@
   }
 
   function openMove(group: GroupDto) {
-    moveId = group.id;
-    moveParentId = group.parent_id;
-    showMoveDialog = true;
+    dialog = { kind: "move", id: group.id, parentId: group.parent_id };
   }
 
   async function handleMove() {
+    if (dialog.kind !== "move") return;
     actionFeedback = null;
     try {
-      await invoke("move_group", { id: moveId, newParentId: moveParentId || null });
-      actionFeedback = { message: "Group moved successfully" };
-      showMoveDialog = false;
+      await invoke("move_group", { id: dialog.id, newParentId: dialog.parentId || null });
+      actionFeedback = success("Group moved successfully");
+      dialog = { kind: "none" };
       await loadGroups();
     } catch (e) {
       actionFeedback = handleError(e);
@@ -193,26 +182,29 @@
       <h2 class="page-title">Groups</h2>
       <p class="page-subtitle">Organize repositories into hierarchical groups</p>
     </div>
-    <button class="btn-primary" type="button" onclick={() => (showCreateDialog = true)}>
+    <button
+      class="btn-primary"
+      type="button"
+      onclick={() => (dialog = { kind: "create", name: "", parentId: null, saving: false })}
+    >
       Create Group
     </button>
   </header>
 
-  <ErrorBanner error={actionFeedback} />
+  <FeedbackBanner feedback={actionFeedback} />
 
   {#if loading}
     <div class="empty-state">Loading groups…</div>
   {:else if pageError}
-    <div class="empty-state error">
-      {pageError.message}
-      {#if pageError.hint}
-        <p class="error-hint">{pageError.hint}</p>
-      {/if}
-    </div>
+    <PageError error={pageError} />
   {:else if tree.length === 0}
     <div class="empty-state">
       <p>No groups created yet.</p>
-      <button class="btn-primary" type="button" onclick={() => (showCreateDialog = true)}>
+      <button
+        class="btn-primary"
+        type="button"
+        onclick={() => (dialog = { kind: "create", name: "", parentId: null, saving: false })}
+      >
         Create Your First Group
       </button>
     </div>
@@ -225,181 +217,109 @@
   {/if}
 </div>
 
-<!-- Create Dialog -->
-{#if showCreateDialog}
-  <div
-    class="dialog-backdrop"
-    role="presentation"
-    onclick={() => (showCreateDialog = false)}
-    onkeydown={(e) => e.key === "Escape" && (showCreateDialog = false)}
-  >
-    <div
-      class="dialog"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => e.stopPropagation()}
-    >
-      <h3 class="dialog-title">Create Group</h3>
-      <label class="dialog-label">
-        Name
-        <input
-          class="dialog-input"
-          type="text"
-          placeholder="Group name"
-          bind:value={createName}
-          onkeydown={(e) => e.key === "Enter" && handleCreate()}
-        />
-      </label>
-      <label class="dialog-label">
-        Parent (optional)
-        <select class="dialog-select" bind:value={createParentId}>
-          <option value={null}>— None (top-level) —</option>
-          {#each groups as g (g.id)}
-            <option value={g.id}>{g.name}</option>
-          {/each}
-        </select>
-      </label>
-      <div class="dialog-actions">
-        <button class="btn-secondary" type="button" onclick={() => (showCreateDialog = false)}>
-          Cancel
-        </button>
-        <button
-          class="btn-primary"
-          type="button"
-          onclick={handleCreate}
-          disabled={creating || !createName.trim()}
-        >
-          {creating ? "Creating…" : "Create"}
-        </button>
-      </div>
-    </div>
-  </div>
+{#if createDialog}
+  <Dialog title="Create Group" onClose={() => (dialog = { kind: "none" })}>
+    <label class="dialog-label">
+      Name
+      <input
+        class="dialog-input"
+        type="text"
+        placeholder="Group name"
+        bind:value={createDialog.name}
+        onkeydown={(e) => e.key === "Enter" && handleCreate()}
+      />
+    </label>
+    <label class="dialog-label">
+      Parent (optional)
+      <select class="dialog-select" bind:value={createDialog.parentId}>
+        <option value={null}>— None (top-level) —</option>
+        {#each groups as g (g.id)}
+          <option value={g.id}>{g.name}</option>
+        {/each}
+      </select>
+    </label>
+    {#snippet actions()}
+      <button class="btn-secondary" type="button" onclick={() => (dialog = { kind: "none" })}>
+        Cancel
+      </button>
+      <button
+        class="btn-primary"
+        type="button"
+        onclick={handleCreate}
+        disabled={createDialog.saving || !createDialog.name.trim()}
+      >
+        {createDialog.saving ? "Creating…" : "Create"}
+      </button>
+    {/snippet}
+  </Dialog>
 {/if}
 
-<!-- Rename Dialog -->
-{#if showRenameDialog}
-  <div
-    class="dialog-backdrop"
-    role="presentation"
-    onclick={() => (showRenameDialog = false)}
-    onkeydown={(e) => e.key === "Escape" && (showRenameDialog = false)}
-  >
-    <div
-      class="dialog"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => e.stopPropagation()}
-    >
-      <h3 class="dialog-title">Rename Group</h3>
-      <label class="dialog-label">
-        New name
-        <input
-          class="dialog-input"
-          type="text"
-          bind:value={renameName}
-          onkeydown={(e) => e.key === "Enter" && handleRename()}
-        />
-      </label>
-      <div class="dialog-actions">
-        <button class="btn-secondary" type="button" onclick={() => (showRenameDialog = false)}>
-          Cancel
-        </button>
-        <button
-          class="btn-primary"
-          type="button"
-          onclick={handleRename}
-          disabled={!renameName.trim()}
-        >
-          Rename
-        </button>
-      </div>
-    </div>
-  </div>
+{#if renameDialog}
+  <Dialog title="Rename Group" onClose={() => (dialog = { kind: "none" })}>
+    <label class="dialog-label">
+      New name
+      <input
+        class="dialog-input"
+        type="text"
+        bind:value={renameDialog.name}
+        onkeydown={(e) => e.key === "Enter" && handleRename()}
+      />
+    </label>
+    {#snippet actions()}
+      <button class="btn-secondary" type="button" onclick={() => (dialog = { kind: "none" })}>
+        Cancel
+      </button>
+      <button
+        class="btn-primary"
+        type="button"
+        onclick={handleRename}
+        disabled={!renameDialog.name.trim()}
+      >
+        Rename
+      </button>
+    {/snippet}
+  </Dialog>
 {/if}
 
-<!-- Delete Dialog -->
-{#if showDeleteDialog}
-  <div
-    class="dialog-backdrop"
-    role="presentation"
-    onclick={() => (showDeleteDialog = false)}
-    onkeydown={(e) => e.key === "Escape" && (showDeleteDialog = false)}
-  >
-    <div
-      class="dialog"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => e.stopPropagation()}
-    >
-      <h3 class="dialog-title">Delete Group</h3>
-      <p class="dialog-desc">
-        Are you sure you want to delete <strong>{deleteName}</strong>? Repositories in this group
-        will be moved to Ungrouped, and child groups will be re-parented.
-      </p>
-      <div class="dialog-actions">
-        <button class="btn-secondary" type="button" onclick={() => (showDeleteDialog = false)}>
-          Cancel
-        </button>
-        <button class="btn-danger-fill" type="button" onclick={handleDelete}>Delete</button>
-      </div>
-    </div>
-  </div>
+{#if deleteDialog}
+  <Dialog title="Delete Group" onClose={() => (dialog = { kind: "none" })}>
+    <p class="dialog-desc">
+      Are you sure you want to delete <strong>{deleteDialog.name}</strong>? Repositories in this
+      group will be moved to Ungrouped, and child groups will be re-parented.
+    </p>
+    {#snippet actions()}
+      <button class="btn-secondary" type="button" onclick={() => (dialog = { kind: "none" })}>
+        Cancel
+      </button>
+      <button class="btn-danger-fill" type="button" onclick={handleDelete}>Delete</button>
+    {/snippet}
+  </Dialog>
 {/if}
 
-<!-- Move Dialog -->
-{#if showMoveDialog}
-  <div
-    class="dialog-backdrop"
-    role="presentation"
-    onclick={() => (showMoveDialog = false)}
-    onkeydown={(e) => e.key === "Escape" && (showMoveDialog = false)}
-  >
-    <div
-      class="dialog"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => e.stopPropagation()}
-    >
-      <h3 class="dialog-title">Move Group</h3>
-      <label class="dialog-label">
-        New parent
-        <select class="dialog-select" bind:value={moveParentId}>
-          <option value={null}>— None (top-level) —</option>
-          {#each groups.filter((g) => g.id !== moveId) as g (g.id)}
-            <option value={g.id}>{g.name}</option>
-          {/each}
-        </select>
-      </label>
-      <div class="dialog-actions">
-        <button class="btn-secondary" type="button" onclick={() => (showMoveDialog = false)}>
-          Cancel
-        </button>
-        <button class="btn-primary" type="button" onclick={handleMove}>Move</button>
-      </div>
-    </div>
-  </div>
+{#if moveDialog}
+  <Dialog title="Move Group" onClose={() => (dialog = { kind: "none" })}>
+    <label class="dialog-label">
+      New parent
+      <select class="dialog-select" bind:value={moveDialog.parentId}>
+        <option value={null}>— None (top-level) —</option>
+        {#each groups.filter((g) => g.id !== moveDialog.id) as g (g.id)}
+          <option value={g.id}>{g.name}</option>
+        {/each}
+      </select>
+    </label>
+    {#snippet actions()}
+      <button class="btn-secondary" type="button" onclick={() => (dialog = { kind: "none" })}>
+        Cancel
+      </button>
+      <button class="btn-primary" type="button" onclick={handleMove}>Move</button>
+    {/snippet}
+  </Dialog>
 {/if}
 
 <style>
   .groups-page {
     padding: var(--space-xl);
     max-width: 960px;
-  }
-
-  .page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: var(--space-lg);
-    margin-bottom: var(--space-xl);
   }
 
   .group-tree-wrap {

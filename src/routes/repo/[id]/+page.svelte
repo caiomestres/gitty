@@ -3,42 +3,42 @@
   import { resolve } from "$app/paths";
   import { invoke } from "@tauri-apps/api/core";
   import type { RepoDto, RepoStatusDto, OpResultDto, GroupDto } from "$lib/types/workspace";
-  import { handleError, type HandledError } from "$lib/utils/error-handling";
-  import ErrorBanner from "$lib/components/ErrorBanner.svelte";
+  import { handleError, success, type ActionFeedback } from "$lib/utils/error-handling";
+  import FeedbackBanner from "$lib/components/FeedbackBanner.svelte";
+  import PageError from "$lib/components/PageError.svelte";
   import type { RepositoryHealthDto } from "$lib/types/health";
   import { getRepositoryHealth, refreshHealth } from "$lib/types/health";
   import RepoHealthSection from "$lib/components/RepoHealthSection.svelte";
+  import RepoStatusGrid from "$lib/components/RepoStatusGrid.svelte";
+  import RepoGroupSelect from "$lib/components/RepoGroupSelect.svelte";
+  import RepoTagEditor from "$lib/components/RepoTagEditor.svelte";
   import ChangedFilesList from "$lib/components/ChangedFilesList.svelte";
 
   let repo = $state<RepoDto | null>(null);
   let status = $state<RepoStatusDto | null>(null);
   let loading = $state(true);
-  let pageError = $state<HandledError | null>(null);
-  let actionFeedback = $state<HandledError | null>(null);
+  let pageError = $state<ActionFeedback | null>(null);
+  let actionFeedback = $state<ActionFeedback | null>(null);
   let operating = $state(false);
 
-  // Group assignment
   let allGroups = $state<GroupDto[]>([]);
   let selectedGroupId = $state("");
   let movingGroup = $state(false);
 
-  // Tag editor
-  let newTag = $state("");
-  let tagError = $state<HandledError | null>(null);
+  let tagError = $state<ActionFeedback | null>(null);
 
-  // Health
   let repoHealth = $state<RepositoryHealthDto | null>(null);
   let healthLoading = $state(false);
   let healthRefreshing = $state(false);
 
   const repoId = $derived($page.params.id ?? "");
-  const branchLabel = $derived(() => {
+  const branchLabel = $derived.by(() => {
     if (!status) return "—";
     if (status.detached) return "HEAD (detached)";
     return status.branch ?? "(unborn)";
   });
 
-  const currentGroupName = $derived(() => {
+  const currentGroupName = $derived.by(() => {
     if (!repo?.group_id) return "Ungrouped";
     return allGroups.find((g) => g.id === repo?.group_id)?.name ?? "Ungrouped";
   });
@@ -66,7 +66,7 @@
       const repos = await invoke<RepoDto[]>("list_repositories");
       repo = repos.find((r) => r.id === id) ?? null;
       if (!repo) {
-        pageError = { message: "Repository not found" };
+        pageError = { message: "Repository not found", severity: "error" };
         return;
       }
       if (repo.state === "active") {
@@ -95,28 +95,17 @@
     }
   }
 
-  async function handleFetch() {
-    if (!repo) return;
-    operating = true;
-    actionFeedback = null;
-    try {
-      const result = await invoke<OpResultDto>("fetch_repo", { repoId: repo.id });
-      actionFeedback = { message: result.success ? "Fetch completed" : result.message };
-      status = await invoke<RepoStatusDto>("get_repo_status", { repoId: repo.id });
-    } catch (e) {
-      actionFeedback = handleError(e);
-    } finally {
-      operating = false;
-    }
-  }
+  type RepoOp = { command: "fetch_repo"; label: "Fetch" } | { command: "pull_repo"; label: "Pull" };
 
-  async function handlePull() {
+  async function handleRepoOp(command: RepoOp["command"], label: RepoOp["label"]) {
     if (!repo) return;
     operating = true;
     actionFeedback = null;
     try {
-      const result = await invoke<OpResultDto>("pull_repo", { repoId: repo.id });
-      actionFeedback = { message: result.success ? "Pull completed" : result.message };
+      const result = await invoke<OpResultDto>(command, { repoId: repo.id });
+      actionFeedback = result.success
+        ? success(`${label} completed`)
+        : { message: result.message, severity: "error" };
       status = await invoke<RepoStatusDto>("get_repo_status", { repoId: repo.id });
     } catch (e) {
       actionFeedback = handleError(e);
@@ -133,14 +122,14 @@
     const currentGroupId = repo.group_id ?? ungroupedGroup?.id ?? "";
     if (targetGroupId === currentGroupId) return;
 
-    const oldName = currentGroupName();
+    const oldName = currentGroupName;
     const newName = allGroups.find((g) => g.id === targetGroupId)?.name ?? newGroupId;
 
     movingGroup = true;
     actionFeedback = null;
     try {
       await invoke("assign_repo_to_group", { repoId: repo.id, groupId: targetGroupId });
-      actionFeedback = { message: `Moved from "${oldName}" to "${newName}"` };
+      actionFeedback = success(`Moved from "${oldName}" to "${newName}"`);
       repo = { ...repo, group_id: targetGroupId };
       selectedGroupId = targetGroupId === ungroupedGroup?.id ? "" : targetGroupId;
     } catch (e) {
@@ -152,16 +141,12 @@
     }
   }
 
-  async function handleAddTag() {
-    if (!repo || !newTag.trim()) {
-      tagError = { message: "Tag name cannot be empty" };
-      return;
-    }
+  async function handleAddTag(tag: string) {
+    if (!repo) return;
     tagError = null;
     try {
-      await invoke("add_tag", { repoId: repo.id, tag: newTag.trim() });
-      repo = { ...repo, tags: [...repo.tags, newTag.trim()] };
-      newTag = "";
+      await invoke("add_tag", { repoId: repo.id, tag });
+      repo = { ...repo, tags: [...repo.tags, tag] };
     } catch (e) {
       tagError = handleError(e);
     }
@@ -182,12 +167,7 @@
   {#if loading}
     <div class="loading-state">Loading repository…</div>
   {:else if pageError}
-    <div class="error-state">
-      {pageError.message}
-      {#if pageError.hint}
-        <p class="error-hint">{pageError.hint}</p>
-      {/if}
-    </div>
+    <PageError error={pageError} />
   {:else if repo}
     <header class="detail-header">
       <div>
@@ -197,17 +177,27 @@
       </div>
       <div class="header-actions">
         {#if repo.state === "active"}
-          <button class="btn-secondary" type="button" onclick={handleFetch} disabled={operating}>
+          <button
+            class="btn-secondary"
+            type="button"
+            onclick={() => handleRepoOp("fetch_repo", "Fetch")}
+            disabled={operating}
+          >
             Fetch
           </button>
-          <button class="btn-primary" type="button" onclick={handlePull} disabled={operating}>
+          <button
+            class="btn-primary"
+            type="button"
+            onclick={() => handleRepoOp("pull_repo", "Pull")}
+            disabled={operating}
+          >
             Pull
           </button>
         {/if}
       </div>
     </header>
 
-    <ErrorBanner error={actionFeedback} />
+    <FeedbackBanner feedback={actionFeedback} />
 
     {#if repo.state === "missing"}
       <div class="missing-banner">
@@ -215,37 +205,7 @@
         path reappears.
       </div>
     {:else if status}
-      <div class="info-grid">
-        <div class="info-card">
-          <span class="info-label">Branch</span>
-          <span class="info-value mono">{branchLabel()}</span>
-        </div>
-        <div class="info-card">
-          <span class="info-label">Status</span>
-          <span class="info-value">
-            {#if status.dirty}
-              <span class="badge badge-dirty">dirty</span>
-            {:else}
-              <span class="badge badge-clean">clean</span>
-            {/if}
-          </span>
-        </div>
-        <div class="info-card">
-          <span class="info-label">Tracking</span>
-          <span class="info-value">
-            {#if status.ahead === 0 && status.behind === 0}
-              Up to date
-            {:else}
-              {#if status.ahead > 0}↑{status.ahead}{/if}
-              {#if status.behind > 0}↓{status.behind}{/if}
-            {/if}
-          </span>
-        </div>
-        <div class="info-card">
-          <span class="info-label">Changed Files</span>
-          <span class="info-value">{status.changed_files_count}</span>
-        </div>
-      </div>
+      <RepoStatusGrid {status} {branchLabel} />
 
       {#if status.dirty && status.changed_files.length > 0}
         <ChangedFilesList files={status.changed_files} />
@@ -269,62 +229,19 @@
       {/if}
     {/if}
 
-    <!-- Group Assignment -->
-    <section class="group-section">
-      <h3 class="section-title">Group</h3>
-      <div class="group-select-wrap">
-        <select
-          class="group-select"
-          value={selectedGroupId}
-          onchange={handleGroupChange}
-          disabled={movingGroup}
-        >
-          <option value="">Ungrouped</option>
-          {#each allGroups as g (g.id)}
-            <option value={g.id}>{g.name}</option>
-          {/each}
-        </select>
-      </div>
-    </section>
+    <RepoGroupSelect
+      groups={allGroups}
+      {selectedGroupId}
+      disabled={movingGroup}
+      onchange={handleGroupChange}
+    />
 
-    <!-- Tag Editor -->
-    <section class="tags-section">
-      <h3 class="section-title">Tags</h3>
-      <div class="tag-list">
-        {#each repo.tags as tag (tag)}
-          <span class="tag-pill">
-            {tag}
-            <button
-              class="tag-remove"
-              type="button"
-              title="Remove tag"
-              onclick={() => handleRemoveTag(tag)}>×</button
-            >
-          </span>
-        {/each}
-      </div>
-      <div class="tag-add">
-        <input
-          class="tag-input"
-          type="text"
-          placeholder="Add tag…"
-          bind:value={newTag}
-          onkeydown={(e) => e.key === "Enter" && handleAddTag()}
-        />
-        <button
-          class="btn-secondary btn-sm"
-          type="button"
-          onclick={handleAddTag}
-          disabled={!newTag.trim()}>Add</button
-        >
-      </div>
-      {#if tagError}
-        <p class="tag-error">{tagError.message}</p>
-        {#if tagError.hint}
-          <p class="error-hint">{tagError.hint}</p>
-        {/if}
-      {/if}
-    </section>
+    <RepoTagEditor
+      tags={repo.tags}
+      onAdd={handleAddTag}
+      onRemove={handleRemoveTag}
+      error={tagError}
+    />
 
     <section class="meta-section">
       <h3 class="section-title">Metadata</h3>
@@ -348,15 +265,10 @@
     max-width: 960px;
   }
 
-  .loading-state,
-  .error-state {
+  .loading-state {
     padding: var(--space-xxl);
     text-align: center;
     color: var(--color-muted);
-  }
-
-  .error-state {
-    color: var(--color-error);
   }
 
   .detail-header {
@@ -407,40 +319,6 @@
     margin-bottom: var(--space-xl);
   }
 
-  .info-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: var(--space-base);
-    margin-bottom: var(--space-xl);
-  }
-
-  .info-card {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-xxs);
-    padding: var(--space-base);
-    border: 1px solid var(--color-hairline);
-    border-radius: var(--radius-lg);
-    background: var(--color-surface-card);
-  }
-
-  .info-label {
-    font-size: var(--text-sm);
-    font-weight: 600;
-    color: var(--color-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  .info-value {
-    font-size: var(--text-lg);
-    color: var(--color-ink);
-  }
-
-  .badge {
-    font-size: var(--text-body);
-  }
-
   .section-title {
     font-size: var(--text-body);
     font-weight: 600;
@@ -472,94 +350,6 @@
     color: var(--color-body);
   }
 
-  /* Group assignment */
-  .group-section {
-    margin-bottom: var(--space-xl);
-  }
-
-  .group-select-wrap {
-    max-width: 300px;
-  }
-
-  .group-select {
-    width: 100%;
-    padding: var(--space-sm) var(--space-base);
-    border: 1px solid var(--color-hairline-strong);
-    border-radius: var(--radius-md);
-    background: var(--color-surface-card);
-    color: var(--color-ink);
-    font-size: var(--text-body);
-  }
-
-  .group-select:disabled {
-    opacity: 0.6;
-  }
-
-  /* Tag editor */
-  .tags-section {
-    margin-bottom: var(--space-xl);
-  }
-
-  .tag-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-xs);
-    margin-bottom: var(--space-sm);
-  }
-
-  .tag-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-xxs);
-    padding: var(--space-xxs) var(--space-sm);
-    border-radius: var(--radius-pill);
-    background: var(--color-surface-strong);
-    font-size: var(--text-caption);
-    color: var(--color-ink);
-  }
-
-  .tag-remove {
-    background: none;
-    border: none;
-    color: var(--color-muted);
-    cursor: pointer;
-    font-size: var(--text-body);
-    line-height: 1;
-    padding: 0 2px;
-  }
-
-  .tag-remove:hover {
-    color: var(--color-error);
-  }
-
-  .tag-add {
-    display: flex;
-    gap: var(--space-xs);
-    max-width: 300px;
-  }
-
-  .tag-input {
-    flex: 1;
-    padding: var(--space-xs) var(--space-sm);
-    border: 1px solid var(--color-hairline-strong);
-    border-radius: var(--radius-md);
-    background: var(--color-canvas-soft);
-    color: var(--color-ink);
-    font-size: var(--text-caption);
-  }
-
-  .tag-input:focus {
-    outline: 2px solid color-mix(in srgb, var(--color-primary) 40%, transparent);
-    outline-offset: 1px;
-  }
-
-  .tag-error {
-    margin: var(--space-xxs) 0 0;
-    font-size: var(--text-sm);
-    color: var(--color-error);
-  }
-
-  /* Metadata */
   .meta-section {
     margin-bottom: var(--space-xl);
   }
@@ -593,9 +383,5 @@
     margin: 0;
     font-size: var(--text-caption);
     color: var(--color-body);
-  }
-
-  .mono {
-    font-family: var(--font-mono);
   }
 </style>

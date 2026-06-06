@@ -42,7 +42,7 @@ fn scheduler_triggers_health_evaluation_and_notification() {
     let repo_refs: Vec<&Repository> = repos.iter().collect();
     let statuses = health::collect_statuses(&repo_refs);
     let wh = health::evaluate_workspace(&repo_refs, &statuses, &thresholds);
-    assert!(wh.score > 0.0);
+    assert!(wh.score.unwrap() > 0.0);
 
     let notif = notification::generate_health_notification(
         None,
@@ -61,7 +61,7 @@ fn corrupt_health_cache_triggers_fresh_evaluation() {
     assert!(loaded.is_none());
 
     let wh = gitty_core::WorkspaceHealth {
-        score: 100.0,
+        score: Some(100.0),
         total_repos: 1,
         critical_count: 0,
         warning_count: 0,
@@ -70,7 +70,7 @@ fn corrupt_health_cache_triggers_fresh_evaluation() {
     };
     health_cache::save(&wh, dir.path()).unwrap();
     let reloaded = health_cache::load(dir.path()).unwrap();
-    assert!((reloaded.workspace_health.score - 100.0).abs() < 0.01);
+    assert!((reloaded.workspace_health.score.unwrap() - 100.0).abs() < 0.01);
 }
 
 #[test]

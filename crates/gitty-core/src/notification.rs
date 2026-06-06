@@ -62,6 +62,17 @@ impl Default for NotificationConfig {
 // Notification Generation
 // ---------------------------------------------------------------------------
 
+fn format_health_body(health: &WorkspaceHealth) -> String {
+    let score_str = match health.score {
+        Some(s) => format!("{s:.0}%"),
+        None => "N/A".into(),
+    };
+    format!(
+        "Score: {score_str} — {} critical, {} warning, {} healthy",
+        health.critical_count, health.warning_count, health.healthy_count
+    )
+}
+
 /// Generate a health notification by comparing previous and current workspace health.
 /// Returns `None` if no notification should be emitted per the trigger configuration.
 pub fn generate_health_notification(
@@ -121,13 +132,7 @@ pub fn generate_health_notification(
                     timestamp: OffsetDateTime::now_utc(),
                     severity,
                     title: "Health status changed".into(),
-                    body: format!(
-                        "Score: {:.0}% — {} critical, {} warning, {} healthy",
-                        current.score,
-                        current.critical_count,
-                        current.warning_count,
-                        current.healthy_count
-                    ),
+                    body: format_health_body(current),
                     read: false,
                 })
             } else {
@@ -146,10 +151,7 @@ pub fn generate_health_notification(
                 Severity::Info
             },
             title: "Scheduler run completed".into(),
-            body: format!(
-                "Score: {:.0}% — {} critical, {} warning, {} healthy",
-                current.score, current.critical_count, current.warning_count, current.healthy_count
-            ),
+            body: format_health_body(current),
             read: false,
         }),
     }
@@ -203,9 +205,9 @@ mod tests {
         let total = critical + warning + healthy;
         let not_crit = total - critical;
         let score = if total > 0 {
-            (not_crit as f64 / total as f64) * 100.0
+            Some((not_crit as f64 / total as f64) * 100.0)
         } else {
-            -1.0
+            None
         };
         WorkspaceHealth {
             score,

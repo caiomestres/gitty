@@ -2,10 +2,65 @@ mod commands;
 mod error;
 mod state;
 
+use std::path::Path;
+
 use gitty_core::config::paths;
-use gitty_core::Config;
+use gitty_core::{health, scheduler, Config};
 use state::AppState;
 use tauri::Manager;
+
+/// Run one scheduler tick without holding the config mutex during git execution.
+fn scheduler_tick(app_state: &AppState, config_dir: &Path) {
+    use gitty_core::execution::execute_macro;
+    use gitty_core::job::JobStatus;
+    use gitty_core::power;
+    use gitty_core::scheduler::runner::default_fetch_macro;
+    use time::OffsetDateTime;
+
+    let now = OffsetDateTime::now_utc();
+    let (on_battery, battery_level) = power::battery_state();
+
+    let (macro_def, active_repos) = {
+        let config = app_state.config();
+        if !scheduler::should_run(&config.scheduler, now, on_battery, battery_level) {
+            return;
+        }
+        let macro_def = config
+            .scheduler
+            .macro_id
+            .and_then(|id| config.workspace.find_macro_by_id(id).cloned())
+            .unwrap_or_else(default_fetch_macro);
+        let active_repos: Vec<_> = health::active_repos(&config.workspace.repositories)
+            .into_iter()
+            .cloned()
+            .collect();
+        (macro_def, active_repos)
+    };
+
+    let git = match app_state.git() {
+        Ok(g) => g,
+        Err(_) => return,
+    };
+
+    let repo_refs: Vec<_> = active_repos.iter().collect();
+    let jobs = execute_macro(&macro_def, &repo_refs, &git);
+    for job in &jobs {
+        if let JobStatus::Failed { error } = &job.status {
+            eprintln!(
+                "scheduler: macro '{}' failed on repo {}: {error}",
+                macro_def.name, job.repo_id
+            );
+        }
+    }
+
+    let _ = app_state.with_config_write(|config| {
+        scheduler::record_run(&mut config.scheduler, now);
+        Ok(())
+    });
+
+    let config = app_state.config();
+    gitty_core::scheduler::runner::evaluate_health(&config, config_dir);
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -25,17 +80,14 @@ pub fn run() {
             let app_handle = app.handle().clone();
             std::thread::spawn(move || {
                 const TICK_INTERVAL_SECS: u64 = 30;
-                const HEALTH_POLL_TICKS: u32 = 10; // ~5 minutes at 30s ticks
+                const HEALTH_POLL_TICKS: u32 = 10;
 
                 let mut ticks_since_health_poll: u32 = 0;
                 loop {
                     let app_state = app_handle.state::<AppState>();
 
                     if !has_external_daemon {
-                        let _ = app_state.with_config_write(|config| {
-                            gitty_core::scheduler::runner::tick_with_config(config, &config_dir);
-                            Ok(())
-                        });
+                        scheduler_tick(&app_state, &config_dir);
                     }
 
                     ticks_since_health_poll += 1;
@@ -75,6 +127,7 @@ pub fn run() {
             commands::macros::list_macros,
             commands::macros::get_macro,
             commands::macros::define_macro,
+            commands::macros::update_macro,
             commands::macros::delete_macro,
             commands::macros::run_macro,
             commands::health::get_workspace_health,

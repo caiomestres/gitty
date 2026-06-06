@@ -2,9 +2,9 @@
   import { page } from "$app/stores";
   import { resolve } from "$app/paths";
   import { invoke } from "@tauri-apps/api/core";
-  import { listen } from "@tauri-apps/api/event";
   import { SvelteSet } from "svelte/reactivity";
   import type { GroupTreeNodeDto } from "$lib/types/workspace";
+  import { onConfigChanged } from "$lib/utils/config-events";
 
   const navItems: {
     href: "/" | "/groups" | "/macros" | "/health" | "/changes" | "/settings";
@@ -24,15 +24,7 @@
 
   $effect(() => {
     loadTree();
-
-    let unlisten: (() => void) | undefined;
-    listen("config-changed", () => loadTree()).then((fn) => {
-      unlisten = fn;
-    });
-
-    return () => {
-      unlisten?.();
-    };
+    return onConfigChanged(() => loadTree());
   });
 
   async function loadTree() {

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { resolve } from "$app/paths";
+  import { SvelteMap } from "svelte/reactivity";
   import { invoke } from "@tauri-apps/api/core";
   import type {
     BulkResultDto,
@@ -8,17 +9,19 @@
     RepoWithStatus,
     TagDto,
   } from "$lib/types/workspace";
-  import { handleError, type HandledError } from "$lib/utils/error-handling";
-  import ErrorBanner from "$lib/components/ErrorBanner.svelte";
+  import { handleError, success, type ActionFeedback } from "$lib/utils/error-handling";
+  import FeedbackBanner from "$lib/components/FeedbackBanner.svelte";
+  import PageError from "$lib/components/PageError.svelte";
+  import Dialog from "$lib/components/Dialog.svelte";
 
   let repos = $state<RepoWithStatus[]>([]);
   let loading = $state(true);
-  let pageError = $state<HandledError | null>(null);
+  let pageError = $state<ActionFeedback | null>(null);
   let showScanDialog = $state(false);
   let scanPath = $state("");
   let scanning = $state(false);
   let fetchingAll = $state(false);
-  let actionFeedback = $state<HandledError | null>(null);
+  let actionFeedback = $state<ActionFeedback | null>(null);
 
   // Tag filter
   let allTags = $state<TagDto[]>([]);
@@ -53,16 +56,25 @@
 
   async function loadStatuses() {
     const activeRepos = repos.filter((r) => r.state === "active");
-    await Promise.all(
+    const results = await Promise.allSettled(
       activeRepos.map(async (repo) => {
-        try {
-          const status = await invoke<RepoStatusDto>("get_repo_status", { repoId: repo.id });
-          repos = repos.map((r) => (r.id === repo.id ? { ...r, status, statusLoading: false } : r));
-        } catch {
-          repos = repos.map((r) => (r.id === repo.id ? { ...r, statusLoading: false } : r));
-        }
+        const status = await invoke<RepoStatusDto>("get_repo_status", { repoId: repo.id });
+        return { id: repo.id, status };
       }),
     );
+
+    const statusMap = new SvelteMap<string, RepoStatusDto>();
+    for (const result of results) {
+      if (result.status === "fulfilled") {
+        statusMap.set(result.value.id, result.value.status);
+      }
+    }
+
+    repos = repos.map((r) => ({
+      ...r,
+      status: statusMap.get(r.id) ?? r.status,
+      statusLoading: false,
+    }));
   }
 
   async function handleScan() {
@@ -73,7 +85,7 @@
       const result = await invoke<{ new: number; found: number }>("scan_directory", {
         path: scanPath.trim(),
       });
-      actionFeedback = { message: `Scan complete: ${result.found} found, ${result.new} new` };
+      actionFeedback = success(`Scan complete: ${result.found} found, ${result.new} new`);
       showScanDialog = false;
       scanPath = "";
       await loadWorkspace();
@@ -89,9 +101,9 @@
     actionFeedback = null;
     try {
       const result = await invoke<BulkResultDto>("fetch_all");
-      actionFeedback = {
-        message: `Fetch all: ${result.success_count} succeeded, ${result.failed_count} failed, ${result.skipped_count} skipped`,
-      };
+      actionFeedback = success(
+        `Fetch all: ${result.success_count} succeeded, ${result.failed_count} failed, ${result.skipped_count} skipped`,
+      );
       await loadStatuses();
     } catch (e) {
       actionFeedback = handleError(e);
@@ -100,19 +112,11 @@
     }
   }
 
-  async function handleFetch(repoId: string) {
-    try {
-      await invoke("fetch_repo", { repoId });
-      const status = await invoke<RepoStatusDto>("get_repo_status", { repoId });
-      repos = repos.map((r) => (r.id === repoId ? { ...r, status } : r));
-    } catch (e) {
-      actionFeedback = handleError(e);
-    }
-  }
+  type RepoCommand = "fetch_repo" | "pull_repo";
 
-  async function handlePull(repoId: string) {
+  async function handleRepoOp(repoId: string, command: RepoCommand) {
     try {
-      await invoke("pull_repo", { repoId });
+      await invoke(command, { repoId });
       const status = await invoke<RepoStatusDto>("get_repo_status", { repoId });
       repos = repos.map((r) => (r.id === repoId ? { ...r, status } : r));
     } catch (e) {
@@ -138,7 +142,7 @@
 </script>
 
 <div class="dashboard">
-  <header class="dashboard-header">
+  <header class="page-header">
     <div>
       <h2 class="page-title">Workspace</h2>
       <p class="page-subtitle">Overview of registered repositories</p>
@@ -158,7 +162,7 @@
     </div>
   </header>
 
-  <ErrorBanner error={actionFeedback} />
+  <FeedbackBanner feedback={actionFeedback} />
 
   <section class="stats-bar" aria-label="Workspace statistics">
     <div class="stat-card">
@@ -182,12 +186,7 @@
   {#if loading}
     <div class="empty-state">Loading repositories…</div>
   {:else if pageError}
-    <div class="empty-state error">
-      {pageError.message}
-      {#if pageError.hint}
-        <p class="error-hint">{pageError.hint}</p>
-      {/if}
-    </div>
+    <PageError error={pageError} />
   {:else if repos.length === 0}
     <div class="empty-state">
       <p>No repositories registered yet.</p>
@@ -265,7 +264,7 @@
                       class="btn-icon"
                       type="button"
                       title="Fetch"
-                      onclick={() => handleFetch(repo.id)}
+                      onclick={() => handleRepoOp(repo.id, "fetch_repo")}
                     >
                       ↓
                     </button>
@@ -273,7 +272,7 @@
                       class="btn-icon"
                       type="button"
                       title="Pull"
-                      onclick={() => handlePull(repo.id)}
+                      onclick={() => handleRepoOp(repo.id, "pull_repo")}
                     >
                       ⟳
                     </button>
@@ -289,59 +288,38 @@
 </div>
 
 {#if showScanDialog}
-  <div
-    class="dialog-backdrop"
-    role="presentation"
-    onclick={() => (showScanDialog = false)}
-    onkeydown={(e) => e.key === "Escape" && (showScanDialog = false)}
+  <Dialog
+    title="Scan Directory"
+    description="Enter the path to a directory to scan for Git repositories."
+    onClose={() => (showScanDialog = false)}
   >
-    <div
-      class="dialog"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="scan-title"
-      tabindex="-1"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => e.stopPropagation()}
-    >
-      <h3 id="scan-title" class="dialog-title">Scan Directory</h3>
-      <p class="dialog-desc">Enter the path to a directory to scan for Git repositories.</p>
-      <input
-        class="dialog-input mono"
-        type="text"
-        placeholder="C:\Users\you\projects"
-        bind:value={scanPath}
-        onkeydown={(e) => e.key === "Enter" && handleScan()}
-      />
-      <div class="dialog-actions">
-        <button class="btn-secondary" type="button" onclick={() => (showScanDialog = false)}>
-          Cancel
-        </button>
-        <button
-          class="btn-primary"
-          type="button"
-          onclick={handleScan}
-          disabled={scanning || !scanPath.trim()}
-        >
-          {scanning ? "Scanning…" : "Scan"}
-        </button>
-      </div>
-    </div>
-  </div>
+    <input
+      class="dialog-input mono"
+      type="text"
+      placeholder="C:\Users\you\projects"
+      bind:value={scanPath}
+      onkeydown={(e) => e.key === "Enter" && handleScan()}
+    />
+    {#snippet actions()}
+      <button class="btn-secondary" type="button" onclick={() => (showScanDialog = false)}>
+        Cancel
+      </button>
+      <button
+        class="btn-primary"
+        type="button"
+        onclick={handleScan}
+        disabled={scanning || !scanPath.trim()}
+      >
+        {scanning ? "Scanning…" : "Scan"}
+      </button>
+    {/snippet}
+  </Dialog>
 {/if}
 
 <style>
   .dashboard {
     padding: var(--space-xl);
     max-width: 1200px;
-  }
-
-  .dashboard-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--space-lg);
-    margin-bottom: var(--space-xl);
   }
 
   .header-actions {
@@ -351,28 +329,7 @@
   }
 
   .stats-bar {
-    display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: var(--space-base);
-    margin-bottom: var(--space-xl);
-  }
-
-  .stat-card {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-xxs);
-    padding: var(--space-base) var(--space-md);
-    border: 1px solid var(--color-hairline);
-    border-radius: var(--radius-lg);
-    background: var(--color-surface-card);
-  }
-
-  .stat-value {
-    font-size: var(--text-3xl);
-    font-weight: 400;
-    color: var(--color-ink);
-    letter-spacing: -0.03em;
-    line-height: 1;
   }
 
   .stat-value.stat-active {
@@ -383,13 +340,6 @@
   }
   .stat-value.stat-dirty {
     color: var(--color-primary);
-  }
-
-  .stat-label {
-    font-size: var(--text-caption);
-    color: var(--color-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
   }
 
   .filter-bar {
@@ -414,37 +364,6 @@
     background: var(--color-surface-card);
     color: var(--color-ink);
     font-size: var(--text-caption);
-  }
-
-  .repo-table-wrap {
-    border: 1px solid var(--color-hairline);
-    border-radius: var(--radius-lg);
-    background: var(--color-surface-card);
-    overflow: hidden;
-  }
-
-  .repo-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--text-body);
-  }
-
-  .repo-table th {
-    text-align: left;
-    padding: var(--space-sm) var(--space-base);
-    font-size: var(--text-sm);
-    font-weight: 600;
-    color: var(--color-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    border-bottom: 1px solid var(--color-hairline);
-    background: var(--color-canvas-soft);
-  }
-
-  .repo-table td {
-    padding: var(--space-sm) var(--space-base);
-    border-bottom: 1px solid var(--color-hairline-soft);
-    vertical-align: middle;
   }
 
   .repo-table tr:last-child td {
@@ -518,9 +437,5 @@
 
   .btn-icon {
     margin-right: var(--space-xxs);
-  }
-
-  .mono {
-    font-family: var(--font-mono);
   }
 </style>

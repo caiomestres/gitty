@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export interface WorkspaceHealthDto {
-  score: number;
+  score: number | null;
   total_repos: number;
   critical_count: number;
   warning_count: number;

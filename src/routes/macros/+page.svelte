@@ -1,17 +1,19 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import { listen } from "@tauri-apps/api/event";
   import JobResults from "$lib/components/JobResults.svelte";
   import MacroEditor from "$lib/components/MacroEditor.svelte";
   import MacroRunner from "$lib/components/MacroRunner.svelte";
   import type { MacroDto, StepDto, JobDto } from "$lib/types/workspace";
-  import { handleError, type HandledError } from "$lib/utils/error-handling";
-  import ErrorBanner from "$lib/components/ErrorBanner.svelte";
+  import { handleError, success, type ActionFeedback } from "$lib/utils/error-handling";
+  import { onConfigChanged } from "$lib/utils/config-events";
+  import FeedbackBanner from "$lib/components/FeedbackBanner.svelte";
+  import PageError from "$lib/components/PageError.svelte";
+  import Dialog from "$lib/components/Dialog.svelte";
 
   let macros = $state<MacroDto[]>([]);
   let loading = $state(true);
-  let pageError = $state<HandledError | null>(null);
-  let actionFeedback = $state<HandledError | null>(null);
+  let pageError = $state<ActionFeedback | null>(null);
+  let actionFeedback = $state<ActionFeedback | null>(null);
 
   // Builder state
   let showBuilder = $state(false);
@@ -21,25 +23,19 @@
   let builderVars = $state<{ key: string; value: string }[]>([]);
   let saving = $state(false);
 
-  // Delete state
-  let showDeleteDialog = $state(false);
-  let deleteTarget = $state<MacroDto | null>(null);
+  type DialogState =
+    | { kind: "none" }
+    | { kind: "delete"; target: MacroDto }
+    | { kind: "run"; target: MacroDto };
 
-  // Run state
-  let showRunDialog = $state(false);
-  let runTarget = $state<MacroDto | null>(null);
+  let dialog = $state<DialogState>({ kind: "none" });
 
-  // Results
   let showResults = $state(false);
   let results = $state<JobDto[]>([]);
 
   $effect(() => {
     loadMacros();
-    let unlisten: (() => void) | undefined;
-    listen("config-changed", () => loadMacros()).then((fn) => {
-      unlisten = fn;
-    });
-    return () => unlisten?.();
+    return onConfigChanged(() => loadMacros());
   });
 
   async function loadMacros() {
@@ -77,19 +73,25 @@
     saving = true;
     actionFeedback = null;
     try {
-      if (editingId) {
-        await invoke("delete_macro", { id: editingId });
-      }
       const variables: Record<string, string> = {};
       for (const v of builderVars) {
         if (v.key.trim()) variables[v.key.trim()] = v.value;
       }
-      await invoke("define_macro", {
-        name: builderName.trim(),
-        steps: builderSteps,
-        variables,
-      });
-      actionFeedback = { message: editingId ? "Macro updated" : "Macro created" };
+      if (editingId) {
+        await invoke("update_macro", {
+          id: editingId,
+          name: builderName.trim(),
+          steps: builderSteps,
+          variables,
+        });
+      } else {
+        await invoke("define_macro", {
+          name: builderName.trim(),
+          steps: builderSteps,
+          variables,
+        });
+      }
+      actionFeedback = success(editingId ? "Macro updated" : "Macro created");
       showBuilder = false;
       await loadMacros();
     } catch (e) {
@@ -100,18 +102,16 @@
   }
 
   function openDelete(m: MacroDto) {
-    deleteTarget = m;
-    showDeleteDialog = true;
+    dialog = { kind: "delete", target: m };
   }
 
   async function handleDelete() {
-    if (!deleteTarget) return;
+    if (dialog.kind !== "delete") return;
     actionFeedback = null;
     try {
-      await invoke("delete_macro", { id: deleteTarget.id });
-      actionFeedback = { message: `Deleted macro "${deleteTarget.name}"` };
-      showDeleteDialog = false;
-      deleteTarget = null;
+      await invoke("delete_macro", { id: dialog.target.id });
+      actionFeedback = success(`Deleted macro "${dialog.target.name}"`);
+      dialog = { kind: "none" };
       await loadMacros();
     } catch (e) {
       actionFeedback = handleError(e);
@@ -119,8 +119,7 @@
   }
 
   function openRun(m: MacroDto) {
-    runTarget = m;
-    showRunDialog = true;
+    dialog = { kind: "run", target: m };
   }
 </script>
 
@@ -133,7 +132,7 @@
     <button class="btn-primary" type="button" onclick={openNewBuilder}>New Macro</button>
   </header>
 
-  <ErrorBanner error={actionFeedback} />
+  <FeedbackBanner feedback={actionFeedback} />
 
   {#if showResults && results.length > 0}
     <JobResults jobs={results} onDismiss={() => (showResults = false)} />
@@ -142,7 +141,7 @@
   {#if loading}
     <div class="empty-state">Loading macros…</div>
   {:else if pageError}
-    <div class="empty-state error">{pageError.message}</div>
+    <PageError error={pageError} />
   {:else if showBuilder}
     <MacroEditor
       {editingId}
@@ -188,48 +187,31 @@
   {/if}
 </div>
 
-<!-- Delete Confirmation -->
-{#if showDeleteDialog && deleteTarget}
-  <div
-    class="dialog-backdrop"
-    role="presentation"
-    onclick={() => (showDeleteDialog = false)}
-    onkeydown={(e) => e.key === "Escape" && (showDeleteDialog = false)}
-  >
-    <div
-      class="dialog"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => e.stopPropagation()}
-    >
-      <h3 class="dialog-title">Delete Macro</h3>
-      <p class="dialog-desc">
-        Are you sure you want to delete <strong>{deleteTarget.name}</strong>?
-      </p>
-      <div class="dialog-actions">
-        <button class="btn-secondary" type="button" onclick={() => (showDeleteDialog = false)}>
-          Cancel
-        </button>
-        <button class="btn-danger-fill" type="button" onclick={handleDelete}>Delete</button>
-      </div>
-    </div>
-  </div>
+{#if dialog.kind === "delete"}
+  <Dialog title="Delete Macro" onClose={() => (dialog = { kind: "none" })}>
+    <p class="dialog-desc">
+      Are you sure you want to delete <strong>{dialog.target.name}</strong>?
+    </p>
+    {#snippet actions()}
+      <button class="btn-secondary" type="button" onclick={() => (dialog = { kind: "none" })}>
+        Cancel
+      </button>
+      <button class="btn-danger-fill" type="button" onclick={handleDelete}>Delete</button>
+    {/snippet}
+  </Dialog>
 {/if}
 
-<!-- Run Selection Dialog -->
-{#if showRunDialog && runTarget}
+{#if dialog.kind === "run"}
   <MacroRunner
-    macro={runTarget}
+    macro={dialog.target}
     onComplete={(jobs) => {
-      showRunDialog = false;
+      dialog = { kind: "none" };
       results = jobs;
       showResults = true;
     }}
-    onCancel={() => (showRunDialog = false)}
-    onError={(msg) => {
-      actionFeedback = { message: msg };
+    onCancel={() => (dialog = { kind: "none" })}
+    onError={(feedback) => {
+      actionFeedback = feedback;
     }}
   />
 {/if}
@@ -238,14 +220,6 @@
   .macros-page {
     padding: var(--space-xl);
     max-width: 960px;
-  }
-
-  .page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: var(--space-lg);
-    margin-bottom: var(--space-xl);
   }
 
   .macro-list {

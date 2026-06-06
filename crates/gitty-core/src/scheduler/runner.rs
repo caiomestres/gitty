@@ -15,7 +15,7 @@ use crate::notification::{self, generate_health_notification};
 use crate::power;
 use crate::scheduler;
 
-fn default_fetch_macro() -> MacroDef {
+pub fn default_fetch_macro() -> MacroDef {
     MacroDef {
         id: uuid::Uuid::nil(),
         name: "__scheduler_default".into(),

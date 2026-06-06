@@ -1,8 +1,9 @@
 import { addToast } from "$lib/stores/toast.svelte";
 
-export interface HandledError {
+export interface ActionFeedback {
   message: string;
   hint?: string;
+  severity: "success" | "error";
 }
 
 interface ErrorLike {
@@ -12,11 +13,15 @@ interface ErrorLike {
   transient?: boolean;
 }
 
+export function success(message: string): ActionFeedback {
+  return { message, severity: "success" };
+}
+
 /**
  * Classifies and routes errors: transient errors go to toast and return null,
  * non-transient errors are returned for display in-page.
  */
-export function handleError(err: unknown): HandledError | null {
+export function handleError(err: unknown): ActionFeedback | null {
   let message: string;
   let hint: string | undefined;
   let transient = false;
@@ -37,5 +42,5 @@ export function handleError(err: unknown): HandledError | null {
     return null;
   }
 
-  return { message, hint };
+  return { message, hint, severity: "error" };
 }

@@ -69,7 +69,12 @@ pub struct ShellStep {
 
 impl Workspace {
     /// Register a new Macro and return its id.
-    pub fn define_macro(&mut self, name: &str, steps: Vec<Step>) -> Result<Uuid> {
+    pub fn define_macro(
+        &mut self,
+        name: &str,
+        steps: Vec<Step>,
+        variables: HashMap<String, String>,
+    ) -> Result<Uuid> {
         if self.macros.iter().any(|m| m.name == name) {
             return Err(CoreError::DuplicateMacroName(name.to_string()));
         }
@@ -78,9 +83,37 @@ impl Workspace {
             id,
             name: name.to_string(),
             steps,
-            variables: HashMap::new(),
+            variables,
         });
         Ok(id)
+    }
+
+    /// Atomically update an existing Macro's name, steps, and variables.
+    pub fn update_macro(
+        &mut self,
+        id: Uuid,
+        name: &str,
+        steps: Vec<Step>,
+        variables: HashMap<String, String>,
+    ) -> Result<()> {
+        let idx = self
+            .macros
+            .iter()
+            .position(|m| m.id == id)
+            .ok_or_else(|| CoreError::MacroNotFound(id.to_string()))?;
+
+        if self.macros[idx].name != name
+            && self
+                .macros
+                .iter()
+                .any(|other| other.id != id && other.name == name)
+        {
+            return Err(CoreError::DuplicateMacroName(name.to_string()));
+        }
+        self.macros[idx].name = name.to_string();
+        self.macros[idx].steps = steps;
+        self.macros[idx].variables = variables;
+        Ok(())
     }
 
     /// Remove a Macro by id.
@@ -165,7 +198,9 @@ mod tests {
     #[test]
     fn define_and_list_macros() {
         let mut ws = Workspace::default();
-        let id = ws.define_macro("sync", vec![fetch_step()]).unwrap();
+        let id = ws
+            .define_macro("sync", vec![fetch_step()], HashMap::new())
+            .unwrap();
         assert_eq!(ws.list_macros().len(), 1);
         assert_eq!(ws.list_macros()[0].id, id);
     }
@@ -173,15 +208,20 @@ mod tests {
     #[test]
     fn define_macro_rejects_duplicate_names() {
         let mut ws = Workspace::default();
-        ws.define_macro("sync", vec![fetch_step()]).unwrap();
-        let err = ws.define_macro("sync", vec![fetch_step()]).unwrap_err();
+        ws.define_macro("sync", vec![fetch_step()], HashMap::new())
+            .unwrap();
+        let err = ws
+            .define_macro("sync", vec![fetch_step()], HashMap::new())
+            .unwrap_err();
         assert!(matches!(err, CoreError::DuplicateMacroName(_)));
     }
 
     #[test]
     fn find_macro_by_name_or_id() {
         let mut ws = Workspace::default();
-        let id = ws.define_macro("sync", vec![fetch_step()]).unwrap();
+        let id = ws
+            .define_macro("sync", vec![fetch_step()], HashMap::new())
+            .unwrap();
         assert!(ws.find_macro("sync").is_some());
         assert!(ws.find_macro(&id.to_string()).is_some());
     }
@@ -189,7 +229,9 @@ mod tests {
     #[test]
     fn delete_macro() {
         let mut ws = Workspace::default();
-        let id = ws.define_macro("sync", vec![fetch_step()]).unwrap();
+        let id = ws
+            .define_macro("sync", vec![fetch_step()], HashMap::new())
+            .unwrap();
         ws.delete_macro(id).unwrap();
         assert!(ws.list_macros().is_empty());
     }

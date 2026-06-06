@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { StepDto } from "$lib/types/workspace";
+  import StepKindEditor from "./StepKindEditor.svelte";
 
   interface Props {
     editingId: string | null;
@@ -118,113 +119,19 @@
         </div>
 
         <div class="step-body">
-          {#if step.kind.type === "git_op"}
-            <label class="field-label field-inline">
-              Operation
-              <select
-                class="field-input"
-                value={step.kind.op}
-                onchange={(e) => {
-                  const op = (e.target as HTMLSelectElement).value;
-                  step.kind =
-                    op === "checkout" ? { type: "git_op", op, branch: "" } : { type: "git_op", op };
-                  steps = [...steps];
-                }}
-              >
-                <option value="fetch">Fetch</option>
-                <option value="pull">Pull</option>
-                <option value="checkout">Checkout</option>
-              </select>
-            </label>
-            {#if step.kind.op === "checkout"}
-              <label class="field-label field-inline">
-                Branch
-                <input
-                  class="field-input"
-                  type="text"
-                  placeholder="branch name"
-                  value={step.kind.branch ?? ""}
-                  oninput={(e) => {
-                    if (step.kind.type === "git_op") {
-                      step.kind = {
-                        type: "git_op",
-                        op: "checkout",
-                        branch: (e.target as HTMLInputElement).value,
-                      };
-                      steps = [...steps];
-                    }
-                  }}
-                />
-              </label>
-            {/if}
-
-            <label class="field-checkbox">
-              <input
-                type="checkbox"
-                checked={!!step.retry}
-                onchange={() => {
-                  step.retry = step.retry ? null : { max_attempts: 3, backoff_seconds: 2 };
-                  steps = [...steps];
-                }}
-              />
-              Retry on network error
-            </label>
-            {#if step.retry}
-              <label class="field-label field-inline">
-                Max attempts
-                <input
-                  class="field-input"
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={step.retry.max_attempts}
-                  oninput={(e) => {
-                    if (step.retry) {
-                      step.retry = {
-                        ...step.retry,
-                        max_attempts: parseInt((e.target as HTMLInputElement).value) || 3,
-                      };
-                      steps = [...steps];
-                    }
-                  }}
-                />
-              </label>
-            {/if}
-          {:else}
-            <label class="field-label field-inline">
-              Command
-              <input
-                class="field-input mono"
-                type="text"
-                placeholder="echo hello"
-                value={step.kind.command}
-                oninput={(e) => {
-                  if (step.kind.type === "shell") {
-                    step.kind = { ...step.kind, command: (e.target as HTMLInputElement).value };
-                    steps = [...steps];
-                  }
-                }}
-              />
-            </label>
-            <label class="field-label field-inline">
-              Label (optional)
-              <input
-                class="field-input"
-                type="text"
-                placeholder="step label"
-                value={step.kind.type === "shell" ? (step.kind.label ?? "") : ""}
-                oninput={(e) => {
-                  if (step.kind.type === "shell") {
-                    step.kind = {
-                      ...step.kind,
-                      label: (e.target as HTMLInputElement).value || undefined,
-                    };
-                    steps = [...steps];
-                  }
-                }}
-              />
-            </label>
-          {/if}
+          <StepKindEditor
+            kind={step.kind}
+            showRetry={step.kind.type === "git_op"}
+            retry={step.retry}
+            onKindChange={(k) => {
+              step.kind = k;
+              steps = [...steps];
+            }}
+            onRetryChange={(r) => {
+              step.retry = r;
+              steps = [...steps];
+            }}
+          />
 
           <label class="field-label field-inline">
             Condition (optional)
@@ -287,66 +194,14 @@
                       <option value="shell">Shell Command</option>
                     </select>
                   </label>
-                  {#if step.rollback.kind.type === "git_op"}
-                    <label class="field-label field-inline">
-                      Operation
-                      <select
-                        class="field-input"
-                        value={step.rollback.kind.op}
-                        onchange={(e) => {
-                          if (!step.rollback || step.rollback.kind.type !== "git_op") return;
-                          const op = (e.target as HTMLSelectElement).value;
-                          step.rollback.kind =
-                            op === "checkout"
-                              ? { type: "git_op", op, branch: "" }
-                              : { type: "git_op", op };
-                          steps = [...steps];
-                        }}
-                      >
-                        <option value="fetch">Fetch</option>
-                        <option value="pull">Pull</option>
-                        <option value="checkout">Checkout</option>
-                      </select>
-                    </label>
-                    {#if step.rollback.kind.op === "checkout"}
-                      <label class="field-label field-inline">
-                        Branch
-                        <input
-                          class="field-input"
-                          type="text"
-                          placeholder="branch name"
-                          value={step.rollback.kind.branch ?? ""}
-                          oninput={(e) => {
-                            if (!step.rollback || step.rollback.kind.type !== "git_op") return;
-                            step.rollback.kind = {
-                              type: "git_op",
-                              op: "checkout",
-                              branch: (e.target as HTMLInputElement).value,
-                            };
-                            steps = [...steps];
-                          }}
-                        />
-                      </label>
-                    {/if}
-                  {:else}
-                    <label class="field-label field-inline">
-                      Command
-                      <input
-                        class="field-input mono"
-                        type="text"
-                        placeholder="rollback command"
-                        value={step.rollback.kind.command}
-                        oninput={(e) => {
-                          if (!step.rollback || step.rollback.kind.type !== "shell") return;
-                          step.rollback.kind = {
-                            ...step.rollback.kind,
-                            command: (e.target as HTMLInputElement).value,
-                          };
-                          steps = [...steps];
-                        }}
-                      />
-                    </label>
-                  {/if}
+                  <StepKindEditor
+                    kind={step.rollback.kind}
+                    onKindChange={(k) => {
+                      if (!step.rollback) return;
+                      step.rollback.kind = k;
+                      steps = [...steps];
+                    }}
+                  />
                 </div>
               </div>
             {:else}

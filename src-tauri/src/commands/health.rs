@@ -10,7 +10,7 @@ use crate::state::AppState;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkspaceHealthDto {
-    pub score: f64,
+    pub score: Option<f64>,
     pub total_repos: usize,
     pub critical_count: usize,
     pub warning_count: usize,

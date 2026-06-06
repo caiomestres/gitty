@@ -2,14 +2,16 @@ export interface RepoDto {
   id: string;
   path: string;
   name: string;
-  state: string;
+  state: "active" | "missing";
   group_id: string | null;
   tags: string[];
 }
 
+export type ChangeStatus = "added" | "modified" | "deleted" | "renamed" | "untracked";
+
 export interface ChangedFileDto {
   path: string;
-  status: string;
+  status: ChangeStatus;
 }
 
 export interface RepoStatusDto {
@@ -98,8 +100,10 @@ export interface StepDto {
   retry?: { max_attempts: number; backoff_seconds: number } | null;
 }
 
+export type GitOpName = "fetch" | "pull" | "checkout";
+
 export type StepKindDto =
-  | { type: "git_op"; op: string; branch?: string }
+  | { type: "git_op"; op: GitOpName; branch?: string }
   | { type: "shell"; command: string; label?: string };
 
 export type SelectionDto =
@@ -108,17 +112,19 @@ export type SelectionDto =
   | { kind: "tag"; name: string }
   | { kind: "multiple"; ids: string[] };
 
+export type JobStatusName = "pending" | "running" | "success" | "failed" | "skipped" | "cancelled";
+
 export interface JobDto {
   id: string;
   repo_id: string;
   repo_name: string;
-  status: string;
+  status: JobStatusName;
   error: string | null;
   step_results: StepResultDto[];
 }
 
 export interface StepResultDto {
   step_index: number;
-  status: string;
+  status: JobStatusName;
   output: string | null;
 }

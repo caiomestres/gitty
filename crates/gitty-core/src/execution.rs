@@ -1,20 +1,30 @@
 use std::path::Path;
 use std::process::Command;
 
+use crate::config::paths;
 use crate::git::write::{ErrorCategory, GitBinary, GitResult};
 use crate::job::{Job, JobStatus, StepResult};
+use crate::lock::RepoLock;
 use crate::macro_def::{GitOp, MacroDef, RetryConfig, ShellStep, Step, StepKind};
 use crate::repository::{Repository, RepositoryState};
 
-/// Execute `macro_def` against `repos` sequentially (one Job per Repository).
+/// Execute `macro_def` against `repos` sequentially (one Job per Repository),
+/// acquiring per-repo locks (ADR-0006) to prevent conflicts with concurrent
+/// bulk operations or CLI invocations.
 pub fn execute_macro(macro_def: &MacroDef, repos: &[&Repository], git: &GitBinary) -> Vec<Job> {
+    let locks_dir = paths::locks_dir().ok();
     repos
         .iter()
-        .map(|repo| execute_macro_on_repo(macro_def, repo, git))
+        .map(|repo| execute_macro_on_repo(macro_def, repo, git, locks_dir.as_deref()))
         .collect()
 }
 
-fn execute_macro_on_repo(macro_def: &MacroDef, repo: &Repository, git: &GitBinary) -> Job {
+fn execute_macro_on_repo(
+    macro_def: &MacroDef,
+    repo: &Repository,
+    git: &GitBinary,
+    locks_dir: Option<&Path>,
+) -> Job {
     let mut job = Job::new(macro_def.id, repo.id);
     job.status = JobStatus::Running;
 
@@ -24,6 +34,21 @@ fn execute_macro_on_repo(macro_def: &MacroDef, repo: &Repository, git: &GitBinar
         };
         return job;
     }
+
+    let _lock = if let Some(dir) = locks_dir {
+        match RepoLock::acquire_in(repo.id, dir) {
+            Ok(lock) => Some(lock),
+            Err(crate::error::CoreError::LockContention { pid, since, .. }) => {
+                job.status = JobStatus::Skipped {
+                    reason: format!("locked by PID {pid} since {since}"),
+                };
+                return job;
+            }
+            Err(_) => None,
+        }
+    } else {
+        None
+    };
 
     for (index, step) in macro_def.steps.iter().enumerate() {
         if !should_run_step(step) {

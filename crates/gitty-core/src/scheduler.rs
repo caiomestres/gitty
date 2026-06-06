@@ -211,7 +211,7 @@ pub fn record_run(config: &mut SchedulerConfig, now: OffsetDateTime) {
 }
 
 /// Compute the next valid run time from `from`.
-/// For Advanced mode, scans forward respecting window and day constraints (7-day cap).
+/// For Advanced mode, jumps directly to the next valid day/window (O(days) worst case).
 pub fn compute_next_run(config: &SchedulerConfig, from: OffsetDateTime) -> Option<OffsetDateTime> {
     if !config.enabled {
         return None;
@@ -226,21 +226,47 @@ pub fn compute_next_run(config: &SchedulerConfig, from: OffsetDateTime) -> Optio
             window_end,
             days,
         } => {
-            // TODO: replace minute-by-minute scan with O(1) jump: advance to
-            // the next valid day, then clamp to window_start. Current worst
-            // case is 10,080 iterations (7 days × 1440 min), acceptable at
-            // a 30-second poll cadence but will bite if scheduling granularity
-            // increases.
-            let mut candidate = from + time::Duration::minutes(*interval_minutes as i64);
-            let cap = from + time::Duration::days(7);
+            if days.is_empty() {
+                return None;
+            }
+            let candidate = from + time::Duration::minutes(*interval_minutes as i64);
+            let candidate_day = DayOfWeek::from(candidate.weekday());
+            let candidate_mins = candidate.hour() as u16 * 60 + candidate.minute() as u16;
 
-            while candidate <= cap {
-                let day = DayOfWeek::from(candidate.weekday());
-                let mins = candidate.hour() as u16 * 60 + candidate.minute() as u16;
-                if days.contains(&day) && in_time_window(mins, *window_start, *window_end) {
-                    return Some(candidate);
+            if days.contains(&candidate_day)
+                && in_time_window(candidate_mins, *window_start, *window_end)
+            {
+                return Some(candidate);
+            }
+
+            // Jump to the next valid day's window_start
+            for offset_days in 0..8u16 {
+                let try_date = candidate + time::Duration::days(offset_days as i64);
+                let try_day = DayOfWeek::from(try_date.weekday());
+                if !days.contains(&try_day) {
+                    continue;
                 }
-                candidate += time::Duration::minutes(1);
+
+                let target_mins = window_start.minutes_since_midnight();
+                let try_mins = try_date.hour() as u16 * 60 + try_date.minute() as u16;
+
+                if offset_days == 0 && try_mins > target_mins {
+                    // Already past window_start today — check if still in window
+                    if in_time_window(try_mins, *window_start, *window_end) {
+                        return Some(try_date);
+                    }
+                    continue;
+                }
+
+                // Jump to window_start on this day
+                let date = try_date.date();
+                let target_time =
+                    time::Time::from_hms(window_start.hour, window_start.minute, 0).ok()?;
+                let result = date.with_time(target_time).assume_utc();
+                let result = result.to_offset(candidate.offset());
+                if result > from {
+                    return Some(result);
+                }
             }
             None
         }
