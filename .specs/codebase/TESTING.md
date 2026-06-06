@@ -1,9 +1,11 @@
 # Testing Infrastructure
 
+**Analyzed:** 2026-06-06
+
 ## Test Frameworks
 
-**Unit/Integration (Backend):** `cargo test` — 165 tests across the workspace (122 unit in core, 18 unit in tauri, 7 git-read integration, 12 M5 integration, 3 scan integration, 3 CLI integration)
-**Unit/Integration (Frontend):** Vitest (referenced in AGENTS.md, not yet added to `package.json`)
+**Unit/Integration (Backend):** `cargo test` — 191 tests across the workspace (155 in core, 26 in tauri, 10 in CLI)
+**Unit (Frontend):** Vitest 3.x (configured in `package.json`, smoke test exists at `src/lib/smoke.test.ts`)
 **E2E:** None configured
 **Coverage:** None configured
 
@@ -11,12 +13,15 @@
 
 **Naming:**
 - Rust: `#[cfg(test)] mod tests` inline + `tests/` directory for integration tests
-- Frontend (planned): `*.test.ts` or `*.spec.ts` (Vitest convention)
+- Frontend: `*.test.ts` (Vitest convention) — currently only smoke test
 
 **Structure:**
 - `crates/gitty-core/src/*.rs` — inline `mod tests` in each module
 - `crates/gitty-core/tests/integration_m5.rs` — cross-module integration tests
+- `crates/gitty-core/tests/git_read.rs` — git2 read integration tests
+- `crates/gitty-core/tests/scan.rs` — scan integration tests
 - `src-tauri/src/**/*.rs` — inline `mod tests` in state, error, and command modules
+- `src/lib/smoke.test.ts` — frontend smoke test
 
 ## Testing Patterns
 
@@ -44,7 +49,7 @@
 | config/mod.rs | 4 | Load missing, save/load round-trip, unknown schema version, corrupt JSON |
 | repository.rs | 3 | Scan root dedup, find by path/id, state serialization |
 | macro_def.rs | 4 | Define/list, duplicate name rejection, find by name/id, delete |
-| error.rs (tauri) | 8 | CoreError mapping to AppError codes for each variant |
+| error.rs (tauri) | 15 | CoreError mapping to AppError codes for each variant, hint generation, transient classification |
 | state.rs (tauri) | 3 | New state holds config, reload from disk, with_config_write persists |
 | commands/groups.rs | 2 | GroupDto includes repo_count, tree node includes repos and children |
 | commands/macros.rs | 4 | Step roundtrip (git op, shell), checkout requires branch, macro variables |
@@ -82,12 +87,14 @@ Not configured. Tauri 2 supports WebDriver-based testing but nothing is set up.
 - Full (all crates): `cargo test`
 - With linting: `cargo test && cargo clippy -- -D warnings && cargo fmt --check`
 - Type checking: `npm run check` (`svelte-check`)
+- Frontend tests: `npm run test:run` (Vitest)
+- All checks: `task` (Taskfile — runs frontend + backend)
 
 ## Coverage Targets
 
-**Current:** 165 tests total (122 unit + 22 integration in core, 18 in tauri, 3 in CLI)
+**Current:** 191 tests total (155 in core, 26 in tauri, 10 in CLI)
 **Goals:** Not yet defined
-**Enforcement:** Not yet automated in CI
+**Enforcement:** GitHub Actions CI runs all tests on every push/PR
 
 ## Test Coverage Matrix
 
@@ -96,7 +103,7 @@ Not configured. Tauri 2 supports WebDriver-based testing but nothing is set up.
 | gitty-core (Rust) | unit + integration | `crates/gitty-core/src/**` + `crates/gitty-core/tests/` | `cargo test -p gitty-core` |
 | gitty-cli (Rust) | integration | `crates/gitty-cli/tests/` | `cargo test -p gitty-cli` |
 | gitty-tauri (Rust) | unit (command logic) | `src-tauri/src/**` | `cargo test -p gitty-tauri` |
-| Svelte components | unit | `src/**/*.test.ts` | `npx vitest` |
+| Svelte components | unit | `src/**/*.test.ts` | `npm run test:run` |
 | IPC integration | integration | TBD | TBD |
 
 ## Parallelism Assessment
@@ -113,4 +120,4 @@ Not configured. Tauri 2 supports WebDriver-based testing but nothing is set up.
 |---|---|---|
 | Quick | After tasks with unit tests only | `cargo test -p gitty-core` |
 | Full | After tasks with integration tests | `cargo test && npm run check` |
-| Build | After phase completion | `npm run build && cd src-tauri && cargo clippy -- -D warnings && cargo test` |
+| Build | After phase completion | `task` (runs all frontend + backend checks) |

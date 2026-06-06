@@ -1,0 +1,58 @@
+version: "3"
+
+tasks:
+  default:
+    desc: Run all checks (frontend + backend)
+    cmds:
+      - task: front
+      - task: back
+
+  front:
+    desc: Run all frontend checks
+    cmds:
+      - task: front:check
+      - task: front:lint
+      - task: front:format
+      - task: front:test
+
+  front:check:
+    desc: Type check (svelte-check)
+    cmds:
+      - npm run check
+
+  front:lint:
+    desc: Lint (eslint)
+    cmds:
+      - npm run lint
+
+  front:format:
+    desc: Format check (prettier)
+    cmds:
+      - npm run format:check
+
+  front:test:
+    desc: Unit tests (vitest)
+    cmds:
+      - npm run test:run
+
+  back:
+    desc: Run all backend checks
+    cmds:
+      - task: back:test
+      - task: back:clippy
+      - task: back:fmt
+
+  back:test:
+    desc: Rust tests
+    cmds:
+      - cargo test
+
+  back:clippy:
+    desc: Rust linting (clippy)
+    cmds:
+      - cargo clippy -- -D warnings
+
+  back:fmt:
+    desc: Rust format check
+    cmds:
+      - cargo fmt --check

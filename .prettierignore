@@ -1,6 +1,10 @@
 build
 .svelte-kit
+.agents
 node_modules
 crates
+site
 static
+target
+src-tauri/gen
 *.md

@@ -1,5 +1,7 @@
 # Project Structure
 
+**Analyzed:** 2026-06-06
+
 **Root:** `gitty/`
 
 ## Directory Tree
@@ -7,62 +9,38 @@
 ```
 gitty/
 ├── .agents/                  # Agent skills (LLM-agnostic)
-│   └── skills/               # Skill definitions (SKILL.md + references)
+│   └── skills/               # 33 skill definitions (SKILL.md + references)
+├── .github/
+│   └── workflows/            # CI, Release, Docs workflows
 ├── .husky/                   # Git hooks (pre-commit → lint-staged)
 ├── .specs/                   # Spec-driven development artifacts
 │   ├── project/              # PROJECT.md, ROADMAP.md, STATE.md
-│   ├── features/             # Feature specs (m5-health-automation, etc.)
+│   ├── features/             # Feature specs (8 features)
 │   └── codebase/             # Brownfield analysis (this directory)
-├── .vscode/                  # Editor configuration
+├── .vscode/                  # Editor configuration (settings + extensions)
 ├── crates/
 │   ├── gitty-core/           # Pure domain logic (no framework deps)
 │   │   ├── Cargo.toml
-│   │   ├── src/
-│   │   │   ├── lib.rs            # Module declarations + re-exports + scan_and_reconcile
-│   │   │   ├── config/mod.rs     # Config load/save, schema versioning
-│   │   │   ├── config/paths.rs   # Platform config directory resolution
-│   │   │   ├── error.rs          # CoreError enum (thiserror)
-│   │   │   ├── repository.rs     # Repository, Workspace, ScanRoot
-│   │   │   ├── scan.rs           # Recursive .git discovery (walkdir)
-│   │   │   ├── reconcile.rs      # Scan result → registry reconciliation
-│   │   │   ├── git/mod.rs        # Git module declarations
-│   │   │   ├── git/read.rs       # git2-based status/branch/log
-│   │   │   ├── git/write.rs      # Shell-out runner, batch ops, locking
-│   │   │   ├── lock.rs           # Per-repo PID lock files (ADR-0006)
-│   │   │   ├── group.rs          # Group CRUD, tree ops, Ungrouped
-│   │   │   ├── tag.rs            # Tag add/remove/filter, Favorite
-│   │   │   ├── macro_def.rs      # MacroDef, Step, GitOp, ShellStep
-│   │   │   ├── job.rs            # Job, JobStatus, StepResult
-│   │   │   ├── selection.rs      # Selection enum + resolve()
-│   │   │   ├── execution.rs      # Macro execution engine
-│   │   │   ├── health.rs         # HealthCheck trait + 4 checks + evaluation
-│   │   │   ├── health_cache.rs   # Atomic health.json cache with file locking
-│   │   │   ├── changes.rs        # Change Dashboard (git2 revwalk, grouping)
-│   │   │   ├── scheduler/        # Scheduler module
-│   │   │   │   ├── mod.rs        # Data models, trigger logic, should_run/record_run
-│   │   │   │   ├── runner.rs     # tick(), health_poll(), run_loop()
-│   │   │   │   └── daemon.rs     # PID file, daemonize, cross-platform process mgmt
-│   │   │   ├── notification.rs   # Notification generation + purge
-│   │   │   └── power.rs          # Battery state detection (battery crate)
-│   │   └── tests/
-│   │       └── integration_m5.rs # Cross-module integration tests
+│   │   ├── src/              # 26 source modules
+│   │   └── tests/            # Integration tests
 │   └── gitty-cli/            # Standalone CLI binary (clap)
 │       ├── Cargo.toml
-│       └── src/
-│           ├── main.rs           # CLI struct definitions + dispatch (~220 lines)
-│           └── commands/
-│               ├── mod.rs            # Shared helpers (resolve_group_id)
-│               ├── workspace.rs      # scan/list/status/fetch/pull/checkout
-│               ├── group.rs          # group list/create/rename/delete/assign/tree
-│               ├── tag.rs            # tag list/add/remove
-│               ├── filter.rs         # filter --group/--tag
-│               ├── macros.rs         # macro list/define/delete/show/run
-│               ├── health.rs         # health [--repo]
-│               ├── scheduler.rs      # scheduler start/stop/status
-│               └── notification.rs   # notification show/set
+│       └── src/              # main.rs + commands/ (8 modules)
 ├── docs/
-│   ├── adr/                  # 8 Architecture Decision Records
-│   └── agents/               # Agent configuration docs
+│   ├── adr/                  # 9 Architecture Decision Records
+│   ├── agents/               # Agent configuration docs
+│   ├── stylesheets/          # MkDocs custom styles
+│   ├── index.md              # Getting Started
+│   ├── concepts.md           # Core concepts documentation
+│   ├── cli-reference.md      # CLI command reference
+│   └── gui-guide.md          # GUI usage guide
+├── homebrew/
+│   └── gitty.rb              # Homebrew formula
+├── scripts/
+│   ├── generate-cli-reference.sh  # CLI reference auto-generation
+│   ├── ci-tauri-wrapper.sh        # CI build helper
+│   └── ci-macos-tauri-build.sh    # macOS CI build helper
+├── site/                     # MkDocs build output (generated)
 ├── src/                      # SvelteKit frontend
 │   ├── app.html              # HTML shell
 │   ├── lib/
@@ -73,13 +51,34 @@ gitty/
 │   │   │   ├── workspace.ts      # Workspace/repo DTO interfaces
 │   │   │   ├── health.ts         # Health DTO interfaces + invoke wrappers
 │   │   │   ├── changes.ts        # Changes DTO interfaces + invoke wrappers
-│   │   │   └── notifications.ts  # Notification DTO interfaces + invoke wrappers
+│   │   │   ├── notifications.ts  # Notification DTO interfaces + invoke wrappers
+│   │   │   └── scheduler.ts      # Scheduler DTO interfaces + helpers
+│   │   ├── stores/
+│   │   │   └── toast.svelte.ts   # Toast notification store (Svelte 5 rune-based)
+│   │   ├── utils/
+│   │   │   ├── error-handling.ts # Error classification + routing (transient/persistent)
+│   │   │   └── config-events.ts  # Tauri event listener helpers
 │   │   ├── components/
 │   │   │   ├── AppShell.svelte       # Layout wrapper (top bar + sidebar + main + bottom bar)
-│   │   │   ├── Sidebar.svelte        # Navigation + Group tree explorer
+│   │   │   ├── Sidebar.svelte        # Navigation + Group tree explorer (D27)
 │   │   │   ├── StatusBar.svelte      # Top status bar
 │   │   │   ├── BottomBar.svelte      # Bottom workspace health bar
-│   │   │   └── NotificationPanel.svelte  # Bell icon + notification dropdown
+│   │   │   ├── NotificationPanel.svelte  # Bell icon + notification dropdown
+│   │   │   ├── ToastContainer.svelte     # Auto-dismissing toast stack
+│   │   │   ├── Dialog.svelte             # Reusable modal dialog
+│   │   │   ├── PageError.svelte          # Inline error display with hints
+│   │   │   ├── FeedbackBanner.svelte     # Success/error banner component
+│   │   │   ├── MacroEditor.svelte        # Visual macro step builder (D32)
+│   │   │   ├── MacroRunner.svelte        # Macro execution selection + progress
+│   │   │   ├── StepKindEditor.svelte     # Step type picker sub-component
+│   │   │   ├── JobResults.svelte         # Macro execution results display
+│   │   │   ├── SchedulerSettings.svelte  # Scheduler configuration form
+│   │   │   ├── NotificationSettings.svelte  # Notification prefs form
+│   │   │   ├── RepoStatusGrid.svelte    # Repository status badge grid
+│   │   │   ├── RepoGroupSelect.svelte   # Group assignment dropdown (D29)
+│   │   │   ├── RepoTagEditor.svelte     # Inline tag editor (D30)
+│   │   │   ├── RepoHealthSection.svelte  # Per-repo health display
+│   │   │   └── ChangedFilesList.svelte   # Changed files list component
 │   │   └── smoke.test.ts     # Vitest smoke test
 │   └── routes/
 │       ├── +layout.ts        # SSR disabled (SPA mode)
@@ -94,9 +93,9 @@ gitty/
 │       ├── settings/
 │       │   └── +page.svelte  # Scan Roots + Scheduler + Notification settings
 │       ├── groups/
-│       │   └── +page.svelte  # Groups admin page
+│       │   └── +page.svelte  # Groups admin page (CRUD)
 │       └── macros/
-│           └── +page.svelte  # Macros page
+│           └── +page.svelte  # Macros page (builder + execution)
 ├── src-tauri/                # Tauri desktop app (workspace member)
 │   ├── capabilities/
 │   │   └── default.json      # Permission definitions
@@ -104,29 +103,33 @@ gitty/
 │   ├── src/
 │   │   ├── lib.rs            # Tauri setup, plugin registration, scheduler/health threads
 │   │   ├── main.rs           # Binary entry point
-│   │   ├── state.rs          # AppState (Mutex<Config> + file-watcher)
-│   │   ├── error.rs          # AppError DTOs with CoreError mapping
+│   │   ├── state.rs          # AppState (Mutex<Config> + file-watcher + GitBinary)
+│   │   ├── error.rs          # AppError DTOs with CoreError mapping + hints
 │   │   └── commands/
 │   │       ├── mod.rs            # Shared DTOs (RepoDto) + helpers (parse_uuid, find_repo)
 │   │       ├── workspace.rs      # list/status/scan/remove/fetch/pull/checkout/fetch_all/pull_all
 │   │       ├── groups.rs         # list/create/rename/delete/move/assign/tree
 │   │       ├── tags.rs           # list/add/remove
-│   │       ├── macros.rs         # list/get/define/delete/run
+│   │       ├── macros.rs         # list/get/define/update/delete/run
 │   │       ├── health.rs         # get_workspace_health/get_repository_health/refresh_health
 │   │       ├── changes.rs        # get_changes
-│   │       ├── scheduler.rs      # get_scheduler_status/set_scheduler_config
+│   │       ├── scheduler.rs      # get_scheduler_config/get_scheduler_status/set_scheduler_config
 │   │       └── notifications.rs  # get/mark_read/get_config/set_config
 │   ├── build.rs              # Tauri build script
 │   ├── Cargo.toml            # Depends on gitty-core, tauri, notify, uuid, time
 │   └── tauri.conf.json       # Tauri configuration (CSP configured)
-├── static/                   # Static assets (SVGs, favicon)
+├── static/
+│   └── fonts/                # Self-hosted fonts (Inter 400/500/600, JetBrains Mono 400/500)
 ├── Cargo.toml                # Workspace manifest (3 members)
+├── Taskfile.yml              # Task runner config (frontend + backend checks)
 ├── AGENTS.md                 # Agent instructions + skill catalog
 ├── CONTEXT.md                # Domain glossary
 ├── DESIGN.md                 # UI design system
+├── mkdocs.yml                # Documentation site config
 ├── eslint.config.js          # ESLint flat config
 ├── package.json              # Frontend deps + scripts
 ├── .prettierrc               # Prettier configuration
+├── .prettierignore           # Prettier ignore patterns
 ├── svelte.config.js          # SvelteKit config (adapter-static)
 ├── tsconfig.json             # TypeScript config (strict)
 └── vite.config.js            # Vite config (Tauri-tailored)
@@ -137,42 +140,42 @@ gitty/
 ### Core Domain (`crates/gitty-core/`)
 
 **Purpose:** Pure domain logic — no Tauri, no CLI framework dependencies
-**Key files:** `src/lib.rs` (module declarations + re-exports), 20 source modules
-**Depends on:** `serde`, `serde_json`, `uuid`, `git2`, `walkdir`, `dirs`, `dunce`, `thiserror`, `time`, `fs2`, `battery`, `daemonize` (Unix only)
-**Test count:** 82 unit tests + 12 integration tests
+**Key files:** `src/lib.rs` (module declarations + re-exports), 26 source modules
+**Depends on:** `serde`, `serde_json`, `uuid`, `git2`, `walkdir`, `dirs`, `dunce`, `thiserror`, `time`, `battery`, `rayon`, `daemonize` (Unix only)
+**Test count:** 155 tests (unit + integration)
 
 ### CLI (`crates/gitty-cli/`)
 
 **Purpose:** Standalone CLI binary for headless/terminal use
-**Key files:** `src/main.rs` (CLI definitions + dispatch), `src/commands/` (8 handler modules, 13 commands)
+**Key files:** `src/main.rs` (CLI definitions + dispatch), `src/commands/` (8 handler modules, 13+ commands)
 **Depends on:** `gitty-core`, `clap`, `anyhow`, `uuid`, `time`
 
 ### Tauri App (`src-tauri/`)
 
 **Purpose:** Desktop application — thin shell over gitty-core
-**Key files:** `src/lib.rs` (setup + command registration), `src/state.rs` (AppState), `src/error.rs` (AppError), `src/commands/` (8 command modules, 31 IPC commands)
+**Key files:** `src/lib.rs` (setup + command registration + scheduler thread), `src/state.rs` (AppState), `src/error.rs` (AppError + hints), `src/commands/` (8 command modules, 38 IPC commands)
 **Depends on:** `gitty-core`, `tauri`, `tauri-plugin-opener`, `uuid`, `time`, `notify`
-**Test count:** 18 unit tests
+**Test count:** 26 unit tests
 
 ### Frontend (`src/`)
 
 **Purpose:** SvelteKit SPA serving as the Tauri webview content
-**Key files:** 7 routes (dashboard, health, changes, settings, repo detail, groups, macros), 5 components (AppShell, Sidebar, StatusBar, BottomBar, NotificationPanel), 4 type modules, design system (tokens.css, global.css)
-**Patterns:** Svelte 5 runes ($state, $derived, $effect), invoke() IPC, onMount for initial loads
+**Key files:** 7 routes, 20 components, 5 type modules, 1 store, 2 utils, design system (tokens.css, global.css)
+**Patterns:** Svelte 5 runes ($state, $derived, $effect), invoke() IPC, onMount for initial loads, toast store for transient errors
 
 ### Documentation (`docs/`)
 
-**Purpose:** Architecture decisions and agent configuration
-**Key files:** 8 ADRs, issue tracker config, triage labels
+**Purpose:** Architecture decisions, agent configuration, and user-facing docs site
+**Key files:** 9 ADRs, MkDocs site with 4 pages (Getting Started, Concepts, CLI Reference, GUI Guide)
 
 ## Where Things Live
 
 **IPC Commands:**
-- Definition: `src-tauri/src/commands/*.rs` (31 `#[tauri::command]` functions)
+- Definition: `src-tauri/src/commands/*.rs` (38 `#[tauri::command]` functions)
 - Registration: `src-tauri/src/lib.rs` (`generate_handler![...]`)
 - DTOs: `src-tauri/src/commands/*.rs` (per-module DTOs)
 - Shared DTOs: `src-tauri/src/commands/mod.rs` (RepoDto, parse_uuid, find_repo)
-- Frontend types: `src/lib/types/*.ts` (health.ts, changes.ts, notifications.ts, workspace.ts)
+- Frontend types: `src/lib/types/*.ts` (health.ts, changes.ts, notifications.ts, workspace.ts, scheduler.ts)
 - Invocation: route pages via `invoke()`
 - Permissions: `src-tauri/capabilities/default.json`
 
@@ -190,6 +193,7 @@ gitty/
 - Scheduler: `crates/gitty-core/src/scheduler/` (models, trigger logic, runner, daemon)
 - Notifications: `crates/gitty-core/src/notification.rs` (generation + purge)
 - Power: `crates/gitty-core/src/power.rs` (battery state)
+- Process: `crates/gitty-core/src/process.rs` (process management helpers)
 
 **Configuration:**
 - Workspace: `Cargo.toml` (root)
@@ -199,11 +203,26 @@ gitty/
 - TypeScript: `tsconfig.json`
 - ESLint: `eslint.config.js`
 - Prettier: `.prettierrc`
+- Task runner: `Taskfile.yml`
+- MkDocs: `mkdocs.yml`
 
 **Design System:**
 - Tokens: `src/lib/styles/tokens.css`
 - Reset/base: `src/lib/styles/global.css`
+- Fonts: `static/fonts/` (Inter 400/500/600, JetBrains Mono 400/500 — self-hosted woff2)
 - Spec: `DESIGN.md`
+
+**Error Handling:**
+- Core errors: `crates/gitty-core/src/error.rs` (CoreError enum)
+- IPC errors: `src-tauri/src/error.rs` (AppError with code + hint + transient)
+- Frontend routing: `src/lib/utils/error-handling.ts` (transient → toast, persistent → inline)
+- Toast display: `src/lib/stores/toast.svelte.ts` + `src/lib/components/ToastContainer.svelte`
+
+**CI/CD:**
+- CI: `.github/workflows/ci.yml` (frontend + Rust matrix)
+- Release: `.github/workflows/release.yml` (matrix build + git-cliff)
+- Docs: `.github/workflows/docs.yml` (MkDocs → GitHub Pages)
+- Scripts: `scripts/` (CI helpers, CLI reference generation)
 
 **Domain Knowledge:**
 - Glossary: `CONTEXT.md`

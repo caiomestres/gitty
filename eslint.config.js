@@ -7,10 +7,12 @@ import tsParser from "@typescript-eslint/parser";
 export default tseslint.config(
   {
     ignores: [
+      ".agents/",
       "build/",
       ".svelte-kit/",
       "crates/",
       "node_modules/",
+      "site/",
       "static/",
       "target/",
       "src-tauri/",
@@ -37,10 +39,7 @@ export default tseslint.config(
   },
   {
     rules: {
-      "@typescript-eslint/no-unused-vars": [
-        "warn",
-        { argsIgnorePattern: "^_" },
-      ],
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
     },
   },
 );

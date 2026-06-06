@@ -93,6 +93,7 @@ These rules are **non-negotiable**. They exist because agents have violated them
 **After implementation:**
 
 9. **Update traceability.** After completing tasks, update `tasks.md` status, `spec.md` requirement status, and `STATE.md` todos. The specs are living documents.
+9b. **Refresh `.specs/codebase/` and `.specs/project/` after every feature.** The `tlc-spec-driven` skill owns these files. After the Execute phase of any feature (before thermo-nuclear review), check whether implementation changed the stack, architecture, structure, conventions, testing setup, or integrations. If it did, update the affected `.specs/codebase/` file(s) to reflect the current state. Also update `.specs/project/STATE.md` decisions/todos and `.specs/project/ROADMAP.md` progress. These are **living snapshots**, not one-time artifacts — they must stay current so future sessions start from truth, not stale data.
 10. **Run `thermo-nuclear-code-quality-review`.** This is the mandatory review gate before close-out (see Primary Workflow).
 11. **Close out on GitHub — in the same response.** When a feature or issue is complete, close the corresponding GitHub issue(s) with a completion comment via `gh`, and comment progress on the PRD issue. Do NOT defer this to a follow-up or skip it because the user didn't explicitly ask. The full close-out procedure is in the Primary Workflow (step 6), but the act of closing is part of "done" — not a separate task. If a GitHub issue exists for the work, it gets closed before you present results to the user.
 

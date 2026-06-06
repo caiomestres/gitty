@@ -1,6 +1,6 @@
 # Tech Stack
 
-**Analyzed:** 2026-06-02
+**Analyzed:** 2026-06-06
 
 ## Core
 
@@ -10,13 +10,14 @@
 - Backend language: Rust (edition 2021)
 - Build tool: Vite 6.x
 - Package manager: npm (frontend), Cargo (backend)
+- Task runner: Taskfile v3 (`task` CLI)
 
 ## Frontend
 
 - UI Framework: Svelte 5 (runes mode — `$state`, `$derived`, `$effect`)
 - Routing: SvelteKit with `adapter-static` (SPA mode, `ssr = false`)
-- Styling: Scoped `<style>` blocks + CSS custom properties design system
-- State Management: Svelte 5 runes (`$state`, `$derived`)
+- Styling: Scoped `<style>` blocks + CSS custom properties design system (`tokens.css`)
+- State Management: Svelte 5 runes (`$state`, `$derived`) + reactive store module (`toast.svelte.ts`)
 - IPC: `@tauri-apps/api` v2 (`invoke()`)
 - Event listening: `@tauri-apps/api/event` (`listen()` for config-changed events)
 
@@ -33,15 +34,16 @@
 - Time: `time` 0.3.47 (OffsetDateTime, formatting, serde)
 - UUIDs: `uuid` 1.x (v4 generation, serde)
 - Battery: `battery` 0.7 (power-state aware scheduling)
-- File locking: `fs2` 0.4 (advisory file locks for health cache)
 - Filesystem: `walkdir` 2.5, `dirs` 6.0, `dunce` 1.0
+- Parallelism: `rayon` 1.x (parallel iteration in core)
 - Daemonization: `daemonize` 0.5 (Unix only)
 
 ## Testing
 
-- Unit/Integration (backend): `cargo test` — 165 tests total
-- Unit (tauri): `cargo test -p gitty-tauri` — 18 tests
-- Unit (frontend): Vitest (configured, smoke test exists)
+- Unit/Integration (backend): `cargo test` — 191 tests total
+- Unit (tauri): `cargo test -p gitty-tauri` — 26 tests
+- Unit (core): `cargo test -p gitty-core` — 155 tests
+- Unit (frontend): Vitest 3.x (configured, smoke test exists)
 - Integration: `crates/gitty-core/tests/integration_m5.rs`
 - E2E: None configured
 - Dev dependencies: `tempfile` 3.x, `assert_cmd` 2.x, `predicates` 3.x
@@ -50,6 +52,18 @@
 
 _None — Gitty is fully local, no cloud dependencies._
 
+## CI/CD
+
+- GitHub Actions: CI (frontend checks + Rust matrix on Linux/Windows/macOS)
+- GitHub Actions: Release (triggered on version tags, matrix build, git-cliff changelog)
+- GitHub Actions: Docs (MkDocs Material → GitHub Pages)
+
+## Documentation
+
+- Docs site: MkDocs Material (source in `docs/`, deployed to GitHub Pages)
+- CLI reference: Auto-generated from clap help output (`scripts/generate-cli-reference.sh`)
+- Distribution: Homebrew formula (`homebrew/gitty.rb`)
+
 ## Development Tools
 
 - IDE: Cursor (VS Code base) with `.vscode/settings.json` + `extensions.json`
@@ -57,6 +71,7 @@ _None — Gitty is fully local, no cloud dependencies._
 - Type checking: `svelte-check` 4.x
 - Linting (Rust): `cargo clippy`
 - Formatting (Rust): `cargo fmt`
-- Linting (TS): ESLint flat config with `typescript-eslint` + `eslint-plugin-svelte`
-- Formatting (TS): Prettier with `prettier-plugin-svelte`
-- Git hooks: Husky (pre-commit → lint-staged)
+- Linting (TS): ESLint 9.x flat config with `typescript-eslint` + `eslint-plugin-svelte`
+- Formatting (TS): Prettier 3.x with `prettier-plugin-svelte`
+- Git hooks: Husky 9.x (pre-commit → lint-staged)
+- Task runner: Taskfile v3 (orchestrates frontend + backend checks)

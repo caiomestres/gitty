@@ -152,5 +152,5 @@ _None currently._
 - [x] M6: Execute `m6-gui-completion` (#18-24)
 - [x] M6: Execute `m6-polish` (#25-29)
 - [x] M6: Execute `m6-ship` (#30-33)
-- [ ] M6: Thermo-nuclear code quality review
-- [ ] M6: Close-out
+- [ ] M6: Thermo-nuclear code quality review (pending)
+- [ ] M6: Close-out (pending — after review)

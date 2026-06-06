@@ -453,3 +453,34 @@ See [concerns.md](concerns.md) for the full template, guidelines, and examples.
 **Combined:** ~19,000 tokens (10% of context window)
 **Acceptable for:** Brownfield projects requiring codebase understanding
 **Loading strategy:** Load relevant docs on-demand based on task
+
+---
+
+## Incremental Refresh
+
+**Trigger:** "Update codebase docs", "Refresh specs", or automatically after the Execute phase of a feature (see [implement.md](implement.md) step 8).
+
+**Purpose:** Keep `.specs/codebase/` current as the codebase evolves. This is NOT a full re-analysis — it's a surgical update of what changed.
+
+**Process:**
+
+1. Identify which files are stale based on what was just implemented
+2. Read the current version of the stale file
+3. Update ONLY the sections affected by the change
+4. Bump the `**Analyzed:**` date
+5. Commit separately from feature code
+
+**When to do a FULL re-mapping instead:**
+
+- Major architectural shift (new crate, framework swap, monolith → workspace)
+- >60 days since last full analysis
+- User explicitly requests "map codebase" or "re-analyze"
+
+**When incremental is sufficient:**
+
+- New dependency added → update STACK.md
+- New route/module/file created → update STRUCTURE.md
+- New pattern adopted → update ARCHITECTURE.md or CONVENTIONS.md
+- Test infrastructure changed → update TESTING.md
+- New integration → update INTEGRATIONS.md
+- Tech debt discovered → update CONCERNS.md

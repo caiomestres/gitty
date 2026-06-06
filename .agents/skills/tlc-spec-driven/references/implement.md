@@ -210,7 +210,33 @@ for reuse across multiple endpoints.
 - Include only files listed in the task — never sneak in "while I'm here" changes
 - If tests are part of the task, include them in the same commit
 
-### 8. Scope Guardrail
+### 8. Refresh Living Docs (after last task in a feature)
+
+After the **final task** of a feature is committed (not after every single task), check whether the implementation introduced changes that make `.specs/codebase/` or `.specs/project/` stale. If so, update the affected files to reflect the current truth.
+
+**Check these signals:**
+
+| Signal | File to update |
+|--------|----------------|
+| New dependency added | `STACK.md` |
+| New module/crate/route created | `STRUCTURE.md` |
+| New architectural pattern introduced | `ARCHITECTURE.md` |
+| New coding convention adopted | `CONVENTIONS.md` |
+| Test framework/strategy changed | `TESTING.md` |
+| New external integration added | `INTEGRATIONS.md` |
+| New concern/tech-debt discovered | `CONCERNS.md` |
+| Milestone/feature completed | `ROADMAP.md` (mark progress) |
+| Decision made during implementation | `STATE.md` (add decision) |
+
+**Rules:**
+
+- Only update what actually changed — do NOT re-run the full brownfield mapping
+- Keep the same format and structure as the existing file
+- Update the `**Analyzed:**` date in files you touch
+- Commit doc updates separately: `docs(specs): refresh [file] after [feature]`
+- If nothing changed, skip this step entirely
+
+### 9. Scope Guardrail
 
 During implementation, you will notice things that could be improved, refactored, or added. **Do not act on them.** Instead:
 
@@ -220,7 +246,7 @@ During implementation, you will notice things that could be improved, refactored
 
 **The heuristic:** "Is this in my task definition?" If no, don't touch it.
 
-### 9. Update Task Status
+### 10. Update Task Status
 
 Mark task complete in tasks.md. Update requirement traceability in spec.md if requirement IDs are used.
 

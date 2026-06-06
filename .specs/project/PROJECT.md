@@ -20,7 +20,7 @@
 - Desktop framework: Tauri 2
 - Frontend: SvelteKit 5 + TypeScript (static adapter, SPA mode)
 - Backend: Rust (2021 edition)
-- Git reads: git2 (libgit2 bindings)
+- Git reads: git2 (libgit2 bindings, vendored)
 - Git writes: system `git` CLI (shell-out)
 
 **Key dependencies:**
@@ -28,8 +28,11 @@
 - `@tauri-apps/api` v2 — IPC bridge
 - `serde` / `serde_json` — Rust serialization
 - `tauri-plugin-opener` — native file/URL opener
-- `clap` — CLI argument parsing (planned, not yet added)
-- `git2` — Git read operations (planned, not yet added)
+- `clap` 4.x — CLI argument parsing (derive mode)
+- `git2` 0.21 — Git read operations (vendored libgit2)
+- `battery` 0.7 — Power-state aware scheduling
+- `notify` 7.x — File watching for config changes
+- `rayon` 1.x — Parallel iteration
 
 ## Scope
 
@@ -39,12 +42,15 @@
 - Repository dashboard — health status, branch info, dirty state
 - Change Dashboard — what changed across workspace (commits, authors, time windows)
 - Groups and Tags — organize Repositories (arbitrary nesting for Groups)
-- Macros — fetch, pull, checkout, custom shell commands across selections; variables, conditions, rollback, confirmations
-- Scheduler — background fetch on configurable triggers
-- Health Checks — freshness, divergence, dirty tree, detached HEAD
-- Standalone CLI — same operations, headless
-- Config persistence — file-based, shared between CLI and GUI
-- Lock — prevent concurrent operations on the same Repository
+- Macros — fetch, pull, checkout, custom shell commands across selections; variables, conditions, rollback, retry (network errors only)
+- Scheduler — background Macro execution on configurable triggers (simple/advanced, power-aware)
+- Health Checks — freshness, divergence, dirty tree, detached HEAD (trait-based, extensible)
+- Notifications — OS-native toasts + in-app panel for critical health warnings
+- Standalone CLI — same operations, headless, with daemon scheduler
+- Config persistence — file-based JSON, shared between CLI and GUI (file-watcher for cross-process sync)
+- Lock — prevent concurrent operations on the same Repository (PID-based, stale detection)
+- Distribution — GitHub Actions release (Windows NSIS, macOS DMG, Linux AppImage), Homebrew tap
+- Documentation — MkDocs Material site (Getting Started, Concepts, CLI Reference, GUI Guide)
 
 **Explicitly out of scope:**
 
@@ -61,3 +67,4 @@
 - Architecture: Cargo workspace with 3 crates — `gitty-core`, `gitty-cli`, `gitty-tauri` (ADR-0002)
 - Language: All code, comments, and documentation in English (ADR-0003)
 - Design: UI must follow DESIGN.md system (warm cream canvas, Cursor Orange scarcely, hairline depth)
+- Distribution: Windows code signing via SignPath.io, macOS ad-hoc codesign (no Apple Developer account for v1, ADR-0009)

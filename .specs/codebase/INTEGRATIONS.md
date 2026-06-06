@@ -1,5 +1,7 @@
 # External Integrations
 
+**Analyzed:** 2026-06-06
+
 ## System Dependencies
 
 ### Git CLI
@@ -53,7 +55,7 @@
 
 **Purpose:** Cached workspace health evaluation results
 **Location:** `health.json` in the config directory
-**Implementation:** `health_cache::save()` / `health_cache::load()` with atomic temp+rename writes and advisory file locking via `fs2`.
+**Implementation:** `health_cache::save()` / `health_cache::load()` with atomic temp+rename writes.
 
 ### Lock Files
 
@@ -66,6 +68,35 @@
 **Purpose:** Single-instance scheduler enforcement
 **Location:** `<config_dir>/scheduler.pid`
 **Implementation:** JSON with `pid` and `started_at`. Stale PID detection on both Unix (kill -0) and Windows (OpenProcess + GetExitCodeProcess).
+
+## CI/CD Integrations
+
+### GitHub Actions — CI
+
+**Purpose:** Automated quality gate on push/PR to main
+**Location:** `.github/workflows/ci.yml`
+**Jobs:** Frontend (type check + lint + format + vitest) + Rust matrix (test + clippy + fmt on Linux/Windows/macOS)
+
+### GitHub Actions — Release
+
+**Purpose:** Build and publish platform binaries on version tags
+**Location:** `.github/workflows/release.yml`
+**Triggers:** Push to `v*` tags
+**Matrix:** Windows (NSIS), macOS (DMG), Linux (AppImage)
+**Release notes:** Auto-generated via `git-cliff` from conventional commits
+**Code signing:** Windows (SignPath.io), macOS (ad-hoc codesign)
+
+### GitHub Actions — Docs
+
+**Purpose:** Deploy documentation site
+**Location:** `.github/workflows/docs.yml`
+**Target:** GitHub Pages via MkDocs Material
+
+### Homebrew
+
+**Purpose:** macOS/Linux package distribution
+**Location:** `homebrew/gitty.rb`
+**Implementation:** Formula for CLI binary installation
 
 ## API Integrations
 
@@ -83,11 +114,11 @@ _None._
 **Triggers:** Simple (interval) or Advanced (interval + time window + day-of-week constraints, midnight-crossing support)
 **Power awareness:** Pauses on battery below configurable threshold (default 20%)
 **Implementation:**
-- GUI: `std::thread::spawn` in Tauri `setup()`, loops every 30s calling `runner::tick()`
+- GUI: `std::thread::spawn` in Tauri `setup()`, loops every 30s calling `scheduler_tick()`
 - CLI: Daemon via `gitty scheduler start` (daemonize on Unix, DETACHED_PROCESS on Windows)
 - Single-instance via PID file with stale detection
 
 ### Health Polling (implemented)
 
 **Purpose:** Periodic health re-evaluation independent of scheduler runs
-**Implementation:** Separate `std::thread::spawn` in Tauri `setup()`, calls `runner::health_poll()` every 5 minutes
+**Implementation:** Same thread as scheduler in Tauri `setup()`, every 10 ticks (300s / 5 min) calls `evaluate_health()`

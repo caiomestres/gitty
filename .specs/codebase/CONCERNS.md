@@ -1,8 +1,24 @@
 # Concerns
 
+**Analyzed:** 2026-06-06
+
 ## Active
 
-_No active concerns._
+### FE-3: Limited frontend test coverage
+
+**Severity:** Medium
+**Location:** `src/` (entire frontend)
+**Evidence:** Only `src/lib/smoke.test.ts` exists — a single smoke test. 20 components and 7 routes have zero test coverage.
+**Impact:** UI regressions go undetected until manual testing. Error handling paths (toast routing, hint display) are not verified.
+**Fix approach:** Add Vitest component tests for critical paths (error handling, macro editor, scheduler settings). Consider Playwright for E2E flows.
+
+### FE-4: No E2E test infrastructure
+
+**Severity:** Low (pre-release)
+**Location:** N/A
+**Evidence:** Tauri 2 supports WebDriver testing but nothing is configured.
+**Impact:** Full user flows (scan → configure → execute macro → verify health) cannot be automatically verified.
+**Fix approach:** Add `@tauri-apps/driver` or Playwright for critical user journeys before v1 release.
 
 ## Resolved
 
@@ -32,15 +48,15 @@ _No active concerns._
 
 ### TEST-1: No tests exist
 
-**Resolution:** 165 tests total across the workspace.
+**Resolution:** 191 tests total across the workspace.
 
 ### FE-1: Scaffold UI doesn't match design system
 
-**Resolution:** Full design system implemented in M3 with CSS custom properties from DESIGN.md.
+**Resolution:** Full design system implemented in M3 with CSS custom properties from DESIGN.md. M6 completed font self-hosting (D74) and token-complete audit (D73).
 
 ### FE-2: No ESLint or Prettier configured
 
-**Resolution:** ESLint flat config + Prettier + Husky pre-commit hook.
+**Resolution:** ESLint flat config + Prettier + Husky pre-commit hook. CI enforces.
 
 ### CLIPPY-1: Derivable Default impl in SchedulerConfig
 
