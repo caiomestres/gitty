@@ -8,7 +8,7 @@
 | D2 | Cargo workspace: gitty-core, gitty-cli, gitty-tauri | ADR-0002 — shared logic, independent binaries | Pre-existing |
 | D3 | English only for all code and documentation | ADR-0003 | Pre-existing |
 | D4 | Cursor-inspired design system from DESIGN.md | Warm cream canvas, editorial typography, hairline depth | Pre-existing |
-| D5 | Foundation (Milestone 1) decomposed into 3 vertical-slice features: `foundation-discovery`, `foundation-git-write`, `foundation-lock` | Milestone too large to build/verify in one pass | 2026-06-01 |
+| D5 | Foundation (Milestone 1) decomposed into 3 vertical-slice features: '.rf `foundation-discovery`, `foundation-git-write`, `foundation-lock` | Milestone too large to build/verify in one pass | 2026-06-01 |
 | D6 | Config = single JSON file with schema `version`, no migrations during 0.x, hard-error on mismatch | ADR-0004 | 2026-06-01 |
 | D7 | Repository identity = root-commit fingerprint; collision-safe auto re-link; `missing` state for vanished paths | ADR-0005 | 2026-06-01 |
 | D8 | Scan = walkdir, descend into nested repos, never into `.git`, default ignore list, no symlinks, non-bare repos only | Grilling — balances nested discovery vs. <5s scan goal | 2026-06-01 |
@@ -75,6 +75,21 @@
 | D69 | Severity DTOs use serde serialization directly; manual severity_str() helpers removed | M5 Grilling Q13 | 2026-06-02 |
 | D70 | M5 complete = every acceptance criterion passes including battery detection and CLI daemonization | M5 Grilling Q14 | 2026-06-02 |
 | D71 | battery crate integrated for real hardware battery state detection in scheduler loop | M5 Grilling Q14+Q15 resolved | 2026-06-02 |
+| D72 | M6 split into 3 sub-features: `m6-gui-completion` (M4+M5 GUI), `m6-polish` (design system + errors + UX), `m6-ship` (packaging + docs + signing) | Scope too large for single spec; each gets own spec/design/tasks | 2026-06-06 |
+| D73 | Design system = token-complete + component audit; every DESIGN.md token as CSS custom property + systematic audit of all Svelte components for hardcoded values | M6 Grilling Q1 | 2026-06-06 |
+| D74 | Self-host fonts: bundle Inter + JetBrains Mono in `static/fonts/`, `@font-face` declarations; remove Google Fonts CDN import; CSP-clean, fully offline | M6 Grilling Q2; current CDN import silently blocked by CSP | 2026-06-06 |
+| D75 | Skip timeline pastel colors from DESIGN.md (no agent timeline in Gitty) | M6 Grilling Q3 | 2026-06-06 |
+| D76 | Macro-level retry: optional `retry` config on Step; Git Ops only, Network errors only; default max 3 attempts with exponential backoff | M6 Grilling Q4+Q19; CONTEXT.md says Shell Commands never auto-retried | 2026-06-06 |
+| D77 | Toast + contextual error display: transient errors (network, lock) as auto-dismissing toasts; persistent errors (config, git not found) inline with recovery suggestions | M6 Grilling Q5 | 2026-06-06 |
+| D78 | AppError DTO gets `hint` field populated from CoreError variant metadata; frontend displays recovery hints | M6 Grilling Q6 | 2026-06-06 |
+| D79 | GitHub Actions release matrix: Windows NSIS, macOS DMG, Linux AppImage; triggered on version tags | M6 Grilling Q7+Q8 | 2026-06-06 |
+| D80 | Auto-generated release notes via git-cliff from conventional commits | M6 Grilling Q9 | 2026-06-06 |
+| D81 | Windows code signing via SignPath.io (free for OSS) integrated into CI release workflow; M6 scope | M6 Grilling Q10; moved from Deferred Ideas | 2026-06-06 |
+| D82 | macOS: ad-hoc codesign in CI + Gatekeeper bypass docs + Homebrew cask tap; no Apple Developer account ($99/yr) needed | ADR-0009; M6 Grilling Q11 | 2026-06-06 |
+| D83 | Full docs site via MkDocs Material, source in `docs/`, deployed to GitHub Pages | M6 Grilling Q12+Q13 | 2026-06-06 |
+| D84 | CLI reference auto-generated from clap help output; stays in sync automatically | M6 Grilling Q14 | 2026-06-06 |
+| D85 | M6 absorbs outstanding M4 GUI work (sidebar group tree, groups admin, macro builder, macro execution, repo detail enhancements) | M6 Grilling Q15; D23 acknowledged M4 GUI was outstanding | 2026-06-06 |
+| D86 | M6 includes M5 GUI polish (health dashboard, changes page, scheduler settings, notification panel) | M6 Grilling Q16 | 2026-06-06 |
 
 ## Blockers
 
@@ -103,11 +118,12 @@ _None currently._
 | Macro JSON import/export | CLI defines steps inline; deferred file-based definition | M2/M4 |
 | ~~Tauri managed state~~ | **Decided (D36):** Managed state + file-watcher in ADR-0007 | M3 → Grilling |
 | Native file picker for Scan Root dialog | Using text input for now; `tauri-plugin-dialog` deferred | M3 |
-| Windows code signing via SignPath.io | Required for SAC/SmartScreen trust; apply at signpath.io/open-source (free for OSS). Sign release binaries in GitHub Actions CI. Without signing, Windows users with Smart App Control will be blocked from running gitty.exe. | M5 Grilling — SAC blocker |
+| ~~Windows code signing via SignPath.io~~ | **Active scope — M6 (D81)** | M5 Grilling → M6 |
+| macOS Apple Developer notarization ($99/yr) | Using free ad-hoc codesign + Homebrew cask for v1 (D82, ADR-0009); full notarization when budget allows | M6 Grilling |
 
 ## Preferences
 
-_None recorded yet._
+- Lightweight tasks (validation, state updates) work well with faster/cheaper models.
 
 ## Todos
 
@@ -128,3 +144,13 @@ _None recorded yet._
 - [x] M2: CLI tag commands — list, add, remove
 - [x] M2: CLI filter command — filter by --group and/or --tag
 - [x] M2: CLI macro commands — list, define, delete, show, run (with --group/--tag/--repo selectors)
+- [x] M6: Grilling complete — 16 decisions recorded (D72–D86), ADR-0009 created
+- [x] M6: PRD updated on GitHub Issues (#1) with M6 scope + user stories #31-37
+- [x] M6: `m6-gui-completion` — specified (spec + tasks, 31 reqs, 10 tasks, issues #18-24)
+- [x] M6: `m6-polish` — specified (spec + design + tasks, 30 reqs, 10 tasks, issues #25-29)
+- [x] M6: `m6-ship` — specified (spec + tasks, 25 reqs, 9 tasks, issues #30-33)
+- [x] M6: Execute `m6-gui-completion` (#18-24)
+- [x] M6: Execute `m6-polish` (#25-29)
+- [x] M6: Execute `m6-ship` (#30-33)
+- [ ] M6: Thermo-nuclear code quality review
+- [ ] M6: Close-out
