@@ -1,0 +1,186 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - v*
+
+permissions:
+  contents: write
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    outputs:
+      notes: ${{ steps.notes.outputs.notes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install git-cliff
+        run: cargo install git-cliff --locked
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          {
+            echo "notes<<EOF"
+            git cliff --latest --strip header
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: changelog
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            os: windows
+            args: ""
+          - platform: macos-latest
+            os: macos
+            args: "--target universal-apple-darwin"
+          - platform: ubuntu-22.04
+            os: linux
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Node.js (LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install system dependencies (Linux)
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libgtk-3-dev \
+            libsoup-3.0-dev \
+            libjavascriptcoregtk-4.1-dev
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # Per ADR-0009: ad-hoc signing prevents "app is damaged" on Apple Silicon.
+      # A paid Apple Developer identity will replace this when budget allows.
+      - name: Ad-hoc codesign (ADR-0009)
+        if: matrix.os == 'macos'
+        run: |
+          chmod +x scripts/ci-tauri-wrapper.sh scripts/ci-macos-tauri-build.sh
+          npm pkg set scripts.tauri='bash scripts/ci-tauri-wrapper.sh'
+          echo "GITTY_MACOS_ADHOC_SIGN=1" >> "$GITHUB_ENV"
+
+      - name: Build and publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITTY_MACOS_ADHOC_SIGN: ${{ matrix.os == 'macos' && '1' || '' }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Gitty v__VERSION__
+          releaseBody: ${{ needs.changelog.outputs.notes }}
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
+
+      - name: Check SignPath credentials
+        if: matrix.os == 'windows'
+        id: signpath
+        shell: bash
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY_SLUG: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
+        run: |
+          if [ -n "$SIGNPATH_API_TOKEN" ] && [ -n "$SIGNPATH_ORGANIZATION_ID" ]; then
+            echo "available=true" >> $GITHUB_OUTPUT
+          else
+            echo "available=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Sign Windows installer (SignPath.io)
+        if: matrix.os == 'windows' && steps.signpath.outputs.available == 'true'
+        shell: bash
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY_SLUG: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
+        run: |
+          INSTALLER=$(find src-tauri/target/release/bundle/nsis -name "*.exe" | head -1)
+          if [ -z "$INSTALLER" ]; then
+            echo "::warning::No NSIS installer found to sign"
+            exit 0
+          fi
+          echo "Submitting $INSTALLER to SignPath.io for signing..."
+
+          RESPONSE=$(curl -sSf -X POST \
+            "https://app.signpath.io/API/v1/${SIGNPATH_ORGANIZATION_ID}/SigningRequests" \
+            -H "Authorization: Bearer ${SIGNPATH_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"projectSlug\": \"${SIGNPATH_PROJECT_SLUG}\",
+              \"signingPolicySlug\": \"${SIGNPATH_SIGNING_POLICY_SLUG}\",
+              \"artifactConfigurationSlug\": \"default\",
+              \"description\": \"Gitty ${GITHUB_REF_NAME} Windows installer\"
+            }" \
+            --form "Artifact=@${INSTALLER}")
+
+          SIGNING_REQUEST_ID=$(echo "$RESPONSE" | jq -r '.signingRequestId')
+          if [ -z "$SIGNING_REQUEST_ID" ] || [ "$SIGNING_REQUEST_ID" = "null" ]; then
+            echo "::error::Failed to submit signing request"
+            echo "$RESPONSE"
+            exit 1
+          fi
+          echo "Signing request submitted: $SIGNING_REQUEST_ID"
+
+          # Poll for completion (max 10 minutes)
+          for i in $(seq 1 60); do
+            sleep 10
+            STATUS=$(curl -sSf \
+              "https://app.signpath.io/API/v1/${SIGNPATH_ORGANIZATION_ID}/SigningRequests/${SIGNING_REQUEST_ID}" \
+              -H "Authorization: Bearer ${SIGNPATH_API_TOKEN}" | jq -r '.status')
+            echo "  Status: $STATUS (attempt $i/60)"
+            if [ "$STATUS" = "Completed" ]; then
+              break
+            elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Denied" ] || [ "$STATUS" = "Cancelled" ]; then
+              echo "::error::Signing request $STATUS"
+              exit 1
+            fi
+          done
+
+          if [ "$STATUS" != "Completed" ]; then
+            echo "::error::Signing request timed out"
+            exit 1
+          fi
+
+          # Download signed artifact
+          curl -sSf -o "${INSTALLER}" \
+            "https://app.signpath.io/API/v1/${SIGNPATH_ORGANIZATION_ID}/SigningRequests/${SIGNING_REQUEST_ID}/SignedArtifact" \
+            -H "Authorization: Bearer ${SIGNPATH_API_TOKEN}"
+          echo "Signed installer downloaded: ${INSTALLER}"
+
+      - name: Windows signing skipped
+        if: matrix.os == 'windows' && steps.signpath.outputs.available != 'true'
+        shell: bash
+        run: |
+          echo "::notice::SIGNPATH_API_TOKEN not configured — skipping Windows code signing."
+          echo "See docs/adr/0009-code-signing-strategy.md for setup instructions."
