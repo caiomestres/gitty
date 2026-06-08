@@ -3,6 +3,7 @@
   import { resolve } from "$app/paths";
   import type { NotificationDto } from "$lib/types/notifications";
   import { getNotifications, markNotificationRead } from "$lib/types/notifications";
+  import Bell from "@lucide/svelte/icons/bell";
 
   let notifications = $state<NotificationDto[]>([]);
   let open = $state(false);
@@ -68,7 +69,7 @@
 
 <div class="notification-wrapper">
   <button class="bell-btn" type="button" onclick={toggle} aria-label="Notifications">
-    <span class="bell-icon" aria-hidden="true">🔔</span>
+    <span class="bell-icon" aria-hidden="true"><Bell size={18} /></span>
     {#if unreadCount > 0}
       <span class="badge">{unreadCount}</span>
     {/if}
@@ -120,14 +121,22 @@
     border: none;
     padding: var(--space-xs);
     cursor: pointer;
-    font-size: var(--text-base);
     line-height: 1;
     border-radius: var(--radius-md);
-    transition: background 0.15s ease;
+    color: var(--color-muted);
+    transition:
+      background 0.15s ease,
+      color 0.15s ease;
   }
 
   .bell-btn:hover {
     background: var(--color-hairline-soft);
+    color: var(--color-ink);
+  }
+
+  .bell-icon {
+    display: flex;
+    align-items: center;
   }
 
   .badge {

@@ -15,6 +15,8 @@
   import PageError from "$lib/components/PageError.svelte";
   import Pagination from "$lib/components/Pagination.svelte";
   import Dialog from "$lib/components/Dialog.svelte";
+  import ArrowDown from "@lucide/svelte/icons/arrow-down";
+  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 
   let repos = $state<RepoWithStatus[]>([]);
   let loading = $state(true);
@@ -328,7 +330,7 @@
                       title="Fetch"
                       onclick={() => handleRepoOp(repo.id, "fetch_repo")}
                     >
-                      ↓
+                      <ArrowDown size={14} />
                     </button>
                     <button
                       class="btn-icon"
@@ -336,7 +338,7 @@
                       title="Pull"
                       onclick={() => handleRepoOp(repo.id, "pull_repo")}
                     >
-                      ⟳
+                      <RefreshCw size={14} />
                     </button>
                   {/if}
                 </td>
@@ -506,6 +508,12 @@
 
   .btn-icon {
     margin-right: var(--space-xxs);
+    color: var(--color-muted);
+    transition: color 0.15s ease;
+  }
+
+  .btn-icon:hover {
+    color: var(--color-ink);
   }
 
   .col-liveness {

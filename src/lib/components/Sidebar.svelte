@@ -5,18 +5,29 @@
   import { SvelteSet } from "svelte/reactivity";
   import type { GroupTreeNodeDto } from "$lib/types/workspace";
   import { onConfigChanged } from "$lib/utils/config-events";
+  import type { Component } from "svelte";
+  import LayoutDashboard from "@lucide/svelte/icons/layout-dashboard";
+  import HeartPulse from "@lucide/svelte/icons/heart-pulse";
+  import History from "@lucide/svelte/icons/history";
+  import ScrollText from "@lucide/svelte/icons/scroll-text";
+  import FolderTree from "@lucide/svelte/icons/folder-tree";
+  import Zap from "@lucide/svelte/icons/zap";
+  import Settings from "@lucide/svelte/icons/settings";
+  import ChevronRight from "@lucide/svelte/icons/chevron-right";
+  import ChevronDown from "@lucide/svelte/icons/chevron-down";
 
   const navItems: {
-    href: "/" | "/groups" | "/macros" | "/health" | "/changes" | "/settings";
+    href: "/" | "/groups" | "/macros" | "/health" | "/changes" | "/activity" | "/settings";
     label: string;
-    icon: string;
+    icon: Component;
   }[] = [
-    { href: "/", label: "Dashboard", icon: "◫" },
-    { href: "/health", label: "Health", icon: "♥" },
-    { href: "/changes", label: "Changes", icon: "⟳" },
-    { href: "/groups", label: "Groups", icon: "⊞" },
-    { href: "/macros", label: "Macros", icon: "⚡" },
-    { href: "/settings", label: "Settings", icon: "⚙" },
+    { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/health", label: "Health", icon: HeartPulse },
+    { href: "/changes", label: "Changes", icon: History },
+    { href: "/activity", label: "Activity", icon: ScrollText },
+    { href: "/groups", label: "Groups", icon: FolderTree },
+    { href: "/macros", label: "Macros", icon: Zap },
+    { href: "/settings", label: "Settings", icon: Settings },
   ];
 
   let tree = $state<GroupTreeNodeDto[]>([]);
@@ -60,7 +71,11 @@
       onclick={() => toggleNode(node.group.id)}
     >
       <span class="toggle-icon" aria-hidden="true">
-        {collapsed.has(node.group.id) ? "▸" : "▾"}
+        {#if collapsed.has(node.group.id)}
+          <ChevronRight size={12} />
+        {:else}
+          <ChevronDown size={12} />
+        {/if}
       </span>
       <span class="group-name">{node.group.name}</span>
       {#if node.repos.length > 0}
@@ -92,7 +107,14 @@
 
 <nav class="sidebar" aria-label="Main navigation">
   <div class="sidebar-brand">
-    <span class="brand-mark" aria-hidden="true">G</span>
+    <img
+      class="brand-mark"
+      src="/brand-mark.svg"
+      alt=""
+      width="28"
+      height="28"
+      aria-hidden="true"
+    />
     <span class="brand-name">Gitty</span>
   </div>
 
@@ -105,7 +127,7 @@
           class:active={$page.url.pathname === item.href}
           aria-current={$page.url.pathname === item.href ? "page" : undefined}
         >
-          <span class="nav-icon" aria-hidden="true">{item.icon}</span>
+          <span class="nav-icon" aria-hidden="true"><item.icon size={16} /></span>
           {item.label}
         </a>
       </li>
@@ -149,16 +171,10 @@
   }
 
   .brand-mark {
-    display: flex;
-    align-items: center;
-    justify-content: center;
     width: 28px;
     height: 28px;
     border-radius: var(--radius-md);
-    background: var(--color-primary);
-    color: var(--color-on-primary);
-    font-size: var(--text-body);
-    font-weight: 600;
+    object-fit: contain;
   }
 
   .brand-name {
@@ -201,10 +217,17 @@
   }
 
   .nav-icon {
-    font-size: var(--text-body);
-    opacity: 0.7;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 18px;
-    text-align: center;
+    color: var(--color-muted);
+    transition: color 0.15s ease;
+  }
+
+  .nav-link:hover .nav-icon,
+  .nav-link.active .nav-icon {
+    color: var(--color-ink);
   }
 
   .tree-section {
@@ -248,10 +271,11 @@
   }
 
   .toggle-icon {
-    font-size: var(--text-2xs);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: var(--color-muted);
     width: 12px;
-    text-align: center;
     flex-shrink: 0;
   }
 
