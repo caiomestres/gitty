@@ -67,6 +67,19 @@
   function severityClass(severity: string): string {
     return `sev-${severity}`;
   }
+
+  function severityTooltip(severity: string): string {
+    switch (severity) {
+      case "healthy":
+        return "All health checks pass — no issues detected";
+      case "warning":
+        return "Minor issues detected — repository may need attention";
+      case "critical":
+        return "Critical issues detected — immediate attention recommended";
+      default:
+        return "";
+    }
+  }
 </script>
 
 <div class="health-page">
@@ -135,6 +148,7 @@
                 <td class="col-status">
                   <span
                     class="sev-dot {severityClass(repo.worst_severity)}"
+                    title={severityTooltip(repo.worst_severity)}
                     aria-label={repo.worst_severity}
                   ></span>
                 </td>
@@ -147,7 +161,9 @@
                     {repo.repo_name}
                   </a>
                 </td>
-                <td class="col-severity">{repo.worst_severity}</td>
+                <td class="col-severity" title={severityTooltip(repo.worst_severity)}
+                  >{repo.worst_severity}</td
+                >
                 <td class="col-checks">{repo.checks.length} checks</td>
               </tr>
               {#if expandedRepo === repo.repo_id}
@@ -159,7 +175,10 @@
                       <div class="check-list">
                         {#each repoDetail.checks as check (check.check_id)}
                           <div class="check-item">
-                            <span class="sev-dot {severityClass(check.severity)}"></span>
+                            <span
+                              class="sev-dot {severityClass(check.severity)}"
+                              title={severityTooltip(check.severity)}
+                            ></span>
                             <span class="check-id">{check.check_id}</span>
                             <span class="check-msg">{check.message}</span>
                           </div>

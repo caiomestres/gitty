@@ -167,6 +167,23 @@
     return parts.join(" ");
   }
 
+  function trackingTooltip(status: RepoStatusDto | undefined): string {
+    if (!status) return "";
+    if (status.ahead === 0 && status.behind === 0) return "Local branch is in sync with upstream";
+    const parts: string[] = [];
+    if (status.ahead > 0) parts.push(`${status.ahead} ahead`);
+    if (status.behind > 0) parts.push(`${status.behind} behind`);
+    return `Local branch is ${parts.join(", ")} of upstream`;
+  }
+
+  function statusTooltip(repo: RepoWithStatus): string {
+    if (repo.state === "missing")
+      return "Repository path not found on disk. It may have been moved or deleted";
+    if (repo.statusLoading) return "";
+    if (repo.status?.dirty) return "This repository has uncommitted changes in the working tree";
+    return "Working tree is clean — no uncommitted changes";
+  }
+
   async function loadLiveness() {
     try {
       const all = await invoke<RepoDashboardLiveness[]>("get_dashboard_liveness");
@@ -201,6 +218,7 @@
       <button
         class="btn-primary"
         type="button"
+        title="Fetch latest changes from remote for all repositories"
         onclick={handleFetchAll}
         disabled={fetchingAll || activeCount === 0}
       >
@@ -290,13 +308,24 @@
                 <td class="mono">{branchLabel(repo)}</td>
                 <td>
                   {#if repo.state === "missing"}
-                    <span class="badge badge-missing">missing</span>
+                    <span
+                      class="badge badge-missing"
+                      title="Repository path not found on disk. It may have been moved or deleted"
+                      >missing</span
+                    >
                   {:else if repo.statusLoading}
                     <span class="badge badge-loading">…</span>
                   {:else if repo.status?.dirty}
-                    <span class="badge badge-dirty">dirty</span>
+                    <span
+                      class="badge badge-dirty"
+                      title="This repository has uncommitted changes in the working tree"
+                      >dirty</span
+                    >
                   {:else}
-                    <span class="badge badge-clean">clean</span>
+                    <span
+                      class="badge badge-clean"
+                      title="Working tree is clean — no uncommitted changes">clean</span
+                    >
                   {/if}
                 </td>
                 <td class="col-liveness">
@@ -315,7 +344,9 @@
                     <span class="liveness-none">—</span>
                   {/if}
                 </td>
-                <td class="tracking">{trackingLabel(repo.status)}</td>
+                <td class="tracking" title={trackingTooltip(repo.status)}
+                  >{trackingLabel(repo.status)}</td
+                >
                 <td class="col-commit">
                   {#if repo.status?.head_short_id}
                     <span class="mono commit-id">{repo.status.head_short_id}</span>
@@ -327,7 +358,7 @@
                     <button
                       class="btn-icon"
                       type="button"
-                      title="Fetch"
+                      title="Fetch latest changes from remote"
                       onclick={() => handleRepoOp(repo.id, "fetch_repo")}
                     >
                       <ArrowDown size={14} />
@@ -335,7 +366,7 @@
                     <button
                       class="btn-icon"
                       type="button"
-                      title="Pull"
+                      title="Pull and merge remote changes"
                       onclick={() => handleRepoOp(repo.id, "pull_repo")}
                     >
                       <RefreshCw size={14} />

@@ -7,6 +7,14 @@
   }
 
   let { status, branchLabel }: Props = $props();
+
+  function trackingTooltip(): string {
+    if (status.ahead === 0 && status.behind === 0) return "Local branch is in sync with upstream";
+    const parts: string[] = [];
+    if (status.ahead > 0) parts.push(`${status.ahead} ahead`);
+    if (status.behind > 0) parts.push(`${status.behind} behind`);
+    return `Local branch is ${parts.join(", ")} of upstream`;
+  }
 </script>
 
 <div class="info-grid">
@@ -18,15 +26,20 @@
     <span class="info-label">Status</span>
     <span class="info-value">
       {#if status.dirty}
-        <span class="badge badge-dirty">dirty</span>
+        <span
+          class="badge badge-dirty"
+          title="This repository has uncommitted changes in the working tree">dirty</span
+        >
       {:else}
-        <span class="badge badge-clean">clean</span>
+        <span class="badge badge-clean" title="Working tree is clean — no uncommitted changes"
+          >clean</span
+        >
       {/if}
     </span>
   </div>
   <div class="info-card">
     <span class="info-label">Tracking</span>
-    <span class="info-value">
+    <span class="info-value" title={trackingTooltip()}>
       {#if status.ahead === 0 && status.behind === 0}
         Up to date
       {:else}

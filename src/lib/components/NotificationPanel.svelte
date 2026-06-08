@@ -68,7 +68,13 @@
 </script>
 
 <div class="notification-wrapper">
-  <button class="bell-btn" type="button" onclick={toggle} aria-label="Notifications">
+  <button
+    class="bell-btn"
+    type="button"
+    onclick={toggle}
+    aria-label="Notifications"
+    title={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
+  >
     <span class="bell-icon" aria-hidden="true"><Bell size={18} /></span>
     {#if unreadCount > 0}
       <span class="badge">{unreadCount}</span>

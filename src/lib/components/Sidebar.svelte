@@ -106,7 +106,7 @@
 {/snippet}
 
 <nav class="sidebar" aria-label="Main navigation">
-  <div class="sidebar-brand">
+  <div class="sidebar-brand" title="Gitty">
     <img
       class="brand-mark"
       src="/brand-mark.svg"
@@ -126,6 +126,7 @@
           class="nav-link"
           class:active={$page.url.pathname === item.href}
           aria-current={$page.url.pathname === item.href ? "page" : undefined}
+          title={item.label}
         >
           <span class="nav-icon" aria-hidden="true"><item.icon size={16} /></span>
           {item.label}
