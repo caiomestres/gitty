@@ -9,9 +9,11 @@
     RepoWithStatus,
     TagDto,
   } from "$lib/types/workspace";
+  import type { RepoDashboardLiveness, DashboardLivenessDot } from "$lib/types/liveness";
   import { handleError, success, type ActionFeedback } from "$lib/utils/error-handling";
   import FeedbackBanner from "$lib/components/FeedbackBanner.svelte";
   import PageError from "$lib/components/PageError.svelte";
+  import Pagination from "$lib/components/Pagination.svelte";
   import Dialog from "$lib/components/Dialog.svelte";
 
   let repos = $state<RepoWithStatus[]>([]);
@@ -27,8 +29,18 @@
   let allTags = $state<TagDto[]>([]);
   let selectedTag = $state("");
 
+  // Liveness
+  let livenessMap = $state<Map<string, DashboardLivenessDot[]>>(new Map());
+
+  // Pagination
+  let pageSize = $state(25);
+  let currentPage = $state(1);
+
   const filteredRepos = $derived(
     selectedTag ? repos.filter((r) => r.tags.includes(selectedTag)) : repos,
+  );
+  const pagedRepos = $derived(
+    filteredRepos.slice((currentPage - 1) * pageSize, currentPage * pageSize),
   );
   const total = $derived(repos.length);
   const activeCount = $derived(repos.filter((r) => r.state === "active").length);
@@ -39,18 +51,38 @@
     loadWorkspace();
   });
 
+  $effect(() => {
+    const _tag = selectedTag;
+    currentPage = 1;
+  });
+
   async function loadWorkspace() {
     loading = true;
     pageError = null;
     try {
-      const list = await invoke<RepoDto[]>("list_repositories");
+      const [list, savedPageSize] = await Promise.all([
+        invoke<RepoDto[]>("list_repositories"),
+        invoke<number>("get_page_size"),
+      ]);
+      pageSize = savedPageSize;
       repos = list.map((r) => ({ ...r, statusLoading: r.state === "active" }));
       allTags = await invoke<TagDto[]>("list_tags");
       await loadStatuses();
+      await loadLiveness();
     } catch (e) {
       pageError = handleError(e);
     } finally {
       loading = false;
+    }
+  }
+
+  async function handlePageSizeChange(size: number) {
+    pageSize = size;
+    currentPage = 1;
+    try {
+      await invoke("set_page_size", { pageSize: size });
+    } catch (e) {
+      actionFeedback = handleError(e);
     }
   }
 
@@ -131,6 +163,19 @@
     if (status.ahead > 0) parts.push(`↑${status.ahead}`);
     if (status.behind > 0) parts.push(`↓${status.behind}`);
     return parts.join(" ");
+  }
+
+  async function loadLiveness() {
+    try {
+      const all = await invoke<RepoDashboardLiveness[]>("get_dashboard_liveness");
+      const m = new SvelteMap<string, DashboardLivenessDot[]>();
+      for (const entry of all) {
+        m.set(entry.repo_id, entry.dots);
+      }
+      livenessMap = m;
+    } catch {
+      livenessMap = new SvelteMap();
+    }
   }
 
   function branchLabel(repo: RepoWithStatus): string {
@@ -225,13 +270,14 @@
               <th>Name</th>
               <th>Branch</th>
               <th>Status</th>
+              <th>Liveness</th>
               <th>Tracking</th>
               <th>Last Commit</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {#each filteredRepos as repo (repo.id)}
+            {#each pagedRepos as repo (repo.id)}
               <tr class:missing={repo.state === "missing"}>
                 <td class="col-name">
                   <a href={resolve(`/repo/${repo.id}`)} class="repo-link">
@@ -249,6 +295,22 @@
                     <span class="badge badge-dirty">dirty</span>
                   {:else}
                     <span class="badge badge-clean">clean</span>
+                  {/if}
+                </td>
+                <td class="col-liveness">
+                  {#if livenessMap.has(repo.id)}
+                    <div class="liveness-dots">
+                      {#each livenessMap.get(repo.id) ?? [] as dot (dot.name)}
+                        <span
+                          class="liveness-dot liveness-{dot.status}"
+                          title="{dot.name}: {dot.status}{dot.response_time_ms != null
+                            ? ` (${dot.response_time_ms}ms)`
+                            : ''}"
+                        ></span>
+                      {/each}
+                    </div>
+                  {:else}
+                    <span class="liveness-none">—</span>
                   {/if}
                 </td>
                 <td class="tracking">{trackingLabel(repo.status)}</td>
@@ -282,6 +344,13 @@
             {/each}
           </tbody>
         </table>
+        <Pagination
+          totalItems={filteredRepos.length}
+          {pageSize}
+          {currentPage}
+          onPageChange={(p) => (currentPage = p)}
+          onPageSizeChange={handlePageSizeChange}
+        />
       </div>
     {/if}
   {/if}
@@ -437,5 +506,41 @@
 
   .btn-icon {
     margin-right: var(--space-xxs);
+  }
+
+  .col-liveness {
+    white-space: nowrap;
+  }
+
+  .liveness-dots {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .liveness-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  .liveness-up {
+    background: var(--color-success);
+    box-shadow: 0 0 4px color-mix(in srgb, var(--color-success) 40%, transparent);
+  }
+
+  .liveness-down {
+    background: var(--color-error);
+    box-shadow: 0 0 4px color-mix(in srgb, var(--color-error) 40%, transparent);
+  }
+
+  .liveness-gray {
+    background: var(--color-muted-soft);
+  }
+
+  .liveness-none {
+    color: var(--color-muted-soft);
+    font-size: var(--text-caption);
   }
 </style>

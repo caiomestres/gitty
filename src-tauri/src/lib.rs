@@ -4,10 +4,55 @@ mod state;
 
 use std::path::Path;
 
+use std::sync::Mutex;
+
 use gitty_core::config::paths;
+use gitty_core::liveness::LivenessCache;
 use gitty_core::{health, scheduler, Config};
 use state::AppState;
 use tauri::Manager;
+
+/// Run liveness probes for all enabled environments whose interval has elapsed.
+fn liveness_tick(app_state: &AppState, liveness_cache: &Mutex<LivenessCache>) {
+    use gitty_core::liveness;
+    use gitty_core::repository::RepositoryState;
+
+    let config = app_state.config();
+    if !config.liveness.enabled {
+        return;
+    }
+
+    let repos_to_probe: Vec<_> = config
+        .workspace
+        .repositories
+        .iter()
+        .filter(|r| r.state == RepositoryState::Active)
+        .filter(|r| !r.environments.is_empty())
+        .map(|r| {
+            let envs: Vec<_> = {
+                let cache = liveness_cache.lock().expect("liveness cache mutex poisoned");
+                r.environments
+                    .iter()
+                    .filter(|e| e.enabled)
+                    .filter(|e| cache.should_probe(r.id, &e.name, e.interval_seconds))
+                    .cloned()
+                    .collect()
+            };
+            (r.id, envs)
+        })
+        .filter(|(_, envs)| !envs.is_empty())
+        .collect();
+
+    drop(config);
+
+    for (repo_id, envs) in repos_to_probe {
+        for env in &envs {
+            let result = liveness::probe_environment(env, liveness::reqwest_http_get);
+            let mut cache = liveness_cache.lock().expect("liveness cache mutex poisoned");
+            cache.store(repo_id, result);
+        }
+    }
+}
 
 /// Run one scheduler tick without holding the config mutex during git execution.
 fn scheduler_tick(app_state: &AppState, config_dir: &Path) {
@@ -66,12 +111,14 @@ fn scheduler_tick(app_state: &AppState, config_dir: &Path) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let config_path = paths::config_file().expect("failed to resolve config path");
             let config = Config::load().unwrap_or_default();
             let state = AppState::new(config, config_path);
             state.start_watcher(app.handle().clone());
             app.manage(state);
+            app.manage(Mutex::new(LivenessCache::default()));
 
             let config_dir = paths::config_dir().expect("failed to resolve config dir");
             let has_external_daemon =
@@ -96,6 +143,9 @@ pub fn run() {
                         let config = app_state.config();
                         gitty_core::scheduler::runner::evaluate_health(&config, &config_dir);
                     }
+
+                    let cache = app_handle.state::<Mutex<LivenessCache>>();
+                    liveness_tick(&app_state, &cache);
 
                     std::thread::sleep(std::time::Duration::from_secs(TICK_INTERVAL_SECS));
                 }
@@ -134,6 +184,14 @@ pub fn run() {
             commands::health::get_workspace_health,
             commands::health::get_repository_health,
             commands::health::refresh_health,
+            commands::liveness::list_environments,
+            commands::liveness::add_environment,
+            commands::liveness::update_environment,
+            commands::liveness::remove_environment,
+            commands::liveness::probe_environment_cmd,
+            commands::liveness::get_liveness_results,
+            commands::liveness::get_all_liveness_results,
+            commands::liveness::get_dashboard_liveness,
             commands::changes::get_changes,
             commands::scheduler::get_scheduler_config,
             commands::scheduler::get_scheduler_status,
@@ -144,6 +202,10 @@ pub fn run() {
             commands::notifications::set_notification_config,
             commands::theme::get_theme,
             commands::theme::set_theme,
+            commands::activity::get_activity_log,
+            commands::activity::clear_activity_log,
+            commands::pagination::get_page_size,
+            commands::pagination::set_page_size,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

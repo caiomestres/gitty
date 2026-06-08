@@ -5,6 +5,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{CoreError, Result};
+use crate::liveness::LivenessConfig;
 use crate::notification::NotificationConfig;
 use crate::repository::Workspace;
 use crate::scheduler::SchedulerConfig;
@@ -25,12 +26,26 @@ pub struct Config {
     pub scheduler: SchedulerConfig,
     #[serde(default)]
     pub notifications: NotificationConfig,
+    #[serde(default)]
+    pub liveness: LivenessConfig,
     #[serde(default = "default_theme")]
     pub theme: String,
+    #[serde(default = "default_activity_log_limit")]
+    pub activity_log_limit: u32,
+    #[serde(default = "default_page_size")]
+    pub page_size: u32,
 }
 
 fn default_theme() -> String {
     "default".to_string()
+}
+
+fn default_activity_log_limit() -> u32 {
+    1000
+}
+
+fn default_page_size() -> u32 {
+    25
 }
 
 impl Default for Config {
@@ -40,7 +55,10 @@ impl Default for Config {
             workspace: Workspace::default(),
             scheduler: SchedulerConfig::default(),
             notifications: NotificationConfig::default(),
+            liveness: LivenessConfig::default(),
             theme: default_theme(),
+            activity_log_limit: default_activity_log_limit(),
+            page_size: default_page_size(),
         }
     }
 }

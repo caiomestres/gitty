@@ -3,8 +3,10 @@
   import { getChanges } from "$lib/types/changes";
   import { handleError, type ActionFeedback } from "$lib/utils/error-handling";
   import PageError from "$lib/components/PageError.svelte";
+  import Pagination from "$lib/components/Pagination.svelte";
   import { onMount } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
+  import { invoke } from "@tauri-apps/api/core";
 
   let data = $state<GroupedChangesDto | null>(null);
   let loading = $state(true);
@@ -12,6 +14,34 @@
   let window = $state<TimeWindow>("week");
   let grouping = $state<Grouping>("repository");
   let allBranchesRepos = new SvelteSet<string>();
+
+  // Pagination
+  let pageSize = $state(25);
+  let currentPage = $state(1);
+
+  interface FlatEntry {
+    groupKey: string;
+    entry: import("$lib/types/changes").ChangeEntryDto;
+  }
+
+  const flatEntries = $derived<FlatEntry[]>(
+    data ? data.groups.flatMap((g) => g.entries.map((e) => ({ groupKey: g.key, entry: e }))) : [],
+  );
+
+  const pagedGroups = $derived.by(() => {
+    const start = (currentPage - 1) * pageSize;
+    const slice = flatEntries.slice(start, start + pageSize);
+    const groups: { key: string; entries: import("$lib/types/changes").ChangeEntryDto[] }[] = [];
+    for (const item of slice) {
+      const last = groups[groups.length - 1];
+      if (last && last.key === item.groupKey) {
+        last.entries.push(item.entry);
+      } else {
+        groups.push({ key: item.groupKey, entries: [item.entry] });
+      }
+    }
+    return groups;
+  });
 
   onMount(() => {
     loadChanges();
@@ -21,11 +51,27 @@
     loading = true;
     pageError = null;
     try {
-      data = await getChanges(window, grouping, [...allBranchesRepos]);
+      const [changes, savedPageSize] = await Promise.all([
+        getChanges(window, grouping, [...allBranchesRepos]),
+        invoke<number>("get_page_size"),
+      ]);
+      data = changes;
+      pageSize = savedPageSize;
+      currentPage = 1;
     } catch (e) {
       pageError = handleError(e);
     } finally {
       loading = false;
+    }
+  }
+
+  async function handlePageSizeChange(size: number) {
+    pageSize = size;
+    currentPage = 1;
+    try {
+      await invoke("set_page_size", { pageSize: size });
+    } catch (e) {
+      pageError = handleError(e);
     }
   }
 
@@ -137,7 +183,7 @@
     </div>
   {:else}
     <div class="groups-list">
-      {#each data.groups as group (group.key)}
+      {#each pagedGroups as group, i (group.key + "-" + i)}
         <section class="change-group">
           <div class="group-header">
             <h3 class="group-key">{group.key}</h3>
@@ -176,6 +222,13 @@
         </section>
       {/each}
     </div>
+    <Pagination
+      totalItems={flatEntries.length}
+      {pageSize}
+      {currentPage}
+      onPageChange={(p) => (currentPage = p)}
+      onPageSizeChange={handlePageSizeChange}
+    />
   {/if}
 </div>
 

@@ -14,9 +14,10 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-gitty-core = { path = "../crates/gitty-core" }
+gitty-core = { path = "../crates/gitty-core", features = ["liveness"] }
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { version = "1", features = ["v4", "serde"] }
