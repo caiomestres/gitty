@@ -5,6 +5,7 @@ pub mod macros;
 pub mod notifications;
 pub mod scheduler;
 pub mod tags;
+pub mod theme;
 pub mod workspace;
 
 use gitty_core::repository::{Repository, RepositoryState};

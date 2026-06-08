@@ -109,6 +109,7 @@ pub fn run() {
             commands::workspace::list_scan_roots,
             commands::workspace::scan_directory,
             commands::workspace::remove_scan_root,
+            commands::workspace::unregister_repository,
             commands::workspace::fetch_repo,
             commands::workspace::pull_repo,
             commands::workspace::checkout_repo,
@@ -141,6 +142,8 @@ pub fn run() {
             commands::notifications::mark_notification_read,
             commands::notifications::get_notification_config,
             commands::notifications::set_notification_config,
+            commands::theme::get_theme,
+            commands::theme::set_theme,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -25,6 +25,12 @@ pub struct Config {
     pub scheduler: SchedulerConfig,
     #[serde(default)]
     pub notifications: NotificationConfig,
+    #[serde(default = "default_theme")]
+    pub theme: String,
+}
+
+fn default_theme() -> String {
+    "default".to_string()
 }
 
 impl Default for Config {
@@ -34,6 +40,7 @@ impl Default for Config {
             workspace: Workspace::default(),
             scheduler: SchedulerConfig::default(),
             notifications: NotificationConfig::default(),
+            theme: default_theme(),
         }
     }
 }
