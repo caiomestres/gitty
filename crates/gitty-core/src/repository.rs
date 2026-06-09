@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::group::Group;
 use crate::health::HealthThresholds;
+use crate::liveness::Environment;
 use crate::macro_def::MacroDef;
 
 /// Lifecycle state of a registered Repository.
@@ -36,6 +37,8 @@ pub struct Repository {
     pub group_id: Option<Uuid>,
     #[serde(default)]
     pub tags: Vec<String>,
+    #[serde(default)]
+    pub environments: Vec<Environment>,
 }
 
 impl Repository {
@@ -54,6 +57,7 @@ impl Repository {
             state: RepositoryState::Active,
             group_id: None,
             tags: Vec::new(),
+            environments: Vec::new(),
         }
     }
 }
@@ -98,8 +102,17 @@ impl Workspace {
         self.repositories.iter().find(|r| r.id == id)
     }
 
-    pub(crate) fn find_repo_mut(&mut self, id: Uuid) -> Option<&mut Repository> {
+    pub fn find_repo_mut(&mut self, id: Uuid) -> Option<&mut Repository> {
         self.repositories.iter_mut().find(|r| r.id == id)
+    }
+
+    /// Remove a repository from the registry by ID. Returns `true` if a
+    /// repository was actually removed.  Does **not** touch the git
+    /// repository on disk.
+    pub fn unregister_repository(&mut self, id: Uuid) -> bool {
+        let before = self.repositories.len();
+        self.repositories.retain(|r| r.id != id);
+        self.repositories.len() < before
     }
 }
 
@@ -124,6 +137,30 @@ mod tests {
         assert!(ws.find_by_path(Path::new("/a/b")).is_some());
         assert!(ws.find_by_id(id).is_some());
         assert!(ws.find_by_path(Path::new("/nope")).is_none());
+    }
+
+    #[test]
+    fn unregister_repository_removes_target_and_preserves_others() {
+        let mut ws = Workspace::default();
+        let repo_a = Repository::new(PathBuf::from("/a"), None);
+        let repo_b = Repository::new(PathBuf::from("/b"), None);
+        let id_a = repo_a.id;
+        let id_b = repo_b.id;
+        ws.repositories.push(repo_a);
+        ws.repositories.push(repo_b);
+
+        assert!(ws.unregister_repository(id_a));
+        assert_eq!(ws.repositories.len(), 1);
+        assert_eq!(ws.repositories[0].id, id_b);
+    }
+
+    #[test]
+    fn unregister_repository_returns_false_for_unknown_id() {
+        let mut ws = Workspace::default();
+        ws.repositories
+            .push(Repository::new(PathBuf::from("/a"), None));
+        assert!(!ws.unregister_repository(Uuid::new_v4()));
+        assert_eq!(ws.repositories.len(), 1);
     }
 
     #[test]

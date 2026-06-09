@@ -1,8 +1,10 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use gitty_core::activity::{self, ActivityEntry, OperationType};
 use gitty_core::git::write::GitBinary;
 use gitty_core::Config;
+use time::OffsetDateTime;
 
 use tauri::Manager;
 
@@ -55,6 +57,32 @@ impl AppState {
         let result = f(&mut guard)?;
         guard.save_to(&self.config_path)?;
         Ok(result)
+    }
+
+    pub fn record_activity(
+        &self,
+        operation: OperationType,
+        target: Option<String>,
+        details: Option<String>,
+        duration_ms: Option<u64>,
+        error: Option<String>,
+    ) {
+        if let Ok(dir) = self.config_dir() {
+            let limit = self.config().activity_log_limit;
+            let mut log = activity::load_log(&dir);
+            log.append(
+                ActivityEntry {
+                    timestamp: OffsetDateTime::now_utc(),
+                    operation,
+                    target,
+                    details,
+                    duration_ms,
+                    error,
+                },
+                limit,
+            );
+            let _ = activity::save_log(&log, &dir);
+        }
     }
 
     pub fn start_watcher(&self, app_handle: tauri::AppHandle) {

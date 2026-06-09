@@ -10,11 +10,13 @@
     TagDto,
   } from "$lib/types/workspace";
   import type { RepoDashboardLiveness, DashboardLivenessDot } from "$lib/types/liveness";
+  import LivenessDot from "$lib/components/LivenessDot.svelte";
   import { handleError, success, type ActionFeedback } from "$lib/utils/error-handling";
   import FeedbackBanner from "$lib/components/FeedbackBanner.svelte";
   import PageError from "$lib/components/PageError.svelte";
   import Pagination from "$lib/components/Pagination.svelte";
   import Dialog from "$lib/components/Dialog.svelte";
+  import OnboardingCard from "$lib/components/OnboardingCard.svelte";
   import ArrowDown from "@lucide/svelte/icons/arrow-down";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 
@@ -54,8 +56,10 @@
   });
 
   $effect(() => {
-    const _tag = selectedTag;
-    currentPage = 1;
+    // Reset to page 1 when tag filter changes
+    if (selectedTag || selectedTag === "") {
+      currentPage = 1;
+    }
   });
 
   async function loadWorkspace() {
@@ -176,14 +180,6 @@
     return `Local branch is ${parts.join(", ")} of upstream`;
   }
 
-  function statusTooltip(repo: RepoWithStatus): string {
-    if (repo.state === "missing")
-      return "Repository path not found on disk. It may have been moved or deleted";
-    if (repo.statusLoading) return "";
-    if (repo.status?.dirty) return "This repository has uncommitted changes in the working tree";
-    return "Working tree is clean — no uncommitted changes";
-  }
-
   async function loadLiveness() {
     try {
       const all = await invoke<RepoDashboardLiveness[]>("get_dashboard_liveness");
@@ -253,12 +249,7 @@
   {:else if pageError}
     <PageError error={pageError} />
   {:else if repos.length === 0}
-    <div class="empty-state">
-      <p>No repositories registered yet.</p>
-      <button class="btn-primary" type="button" onclick={() => (showScanDialog = true)}>
-        Scan a Directory
-      </button>
-    </div>
+    <OnboardingCard onScanComplete={loadWorkspace} />
   {:else}
     <!-- Tag filter -->
     {#if allTags.length > 0}
@@ -332,12 +323,11 @@
                   {#if livenessMap.has(repo.id)}
                     <div class="liveness-dots">
                       {#each livenessMap.get(repo.id) ?? [] as dot (dot.name)}
-                        <span
-                          class="liveness-dot liveness-{dot.status}"
-                          title="{dot.name}: {dot.status}{dot.response_time_ms != null
-                            ? ` (${dot.response_time_ms}ms)`
-                            : ''}"
-                        ></span>
+                        <LivenessDot
+                          status={dot.status}
+                          label={dot.name}
+                          responseTimeMs={dot.response_time_ms}
+                        />
                       {/each}
                     </div>
                   {:else}
@@ -555,27 +545,6 @@
     display: flex;
     gap: 4px;
     align-items: center;
-  }
-
-  .liveness-dot {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-  }
-
-  .liveness-up {
-    background: var(--color-success);
-    box-shadow: 0 0 4px color-mix(in srgb, var(--color-success) 40%, transparent);
-  }
-
-  .liveness-down {
-    background: var(--color-error);
-    box-shadow: 0 0 4px color-mix(in srgb, var(--color-error) 40%, transparent);
-  }
-
-  .liveness-gray {
-    background: var(--color-muted-soft);
   }
 
   .liveness-none {

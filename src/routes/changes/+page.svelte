@@ -7,6 +7,8 @@
   import { onMount } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import { invoke } from "@tauri-apps/api/core";
+  import ChevronsDownUp from "@lucide/svelte/icons/chevrons-down-up";
+  import ChevronsUpDown from "@lucide/svelte/icons/chevrons-up-down";
 
   let data = $state<GroupedChangesDto | null>(null);
   let loading = $state(true);
@@ -196,7 +198,9 @@
                   title={allBranchesRepos.has(repoId) ? "Show HEAD only" : "Show all branches"}
                   onclick={() => toggleAllBranches(repoId)}
                 >
-                  {allBranchesRepos.has(repoId) ? "⊖ HEAD only" : "⊕ All branches"}
+                  {#if allBranchesRepos.has(repoId)}<ChevronsDownUp size={14} /> HEAD only{:else}<ChevronsUpDown
+                      size={14}
+                    /> All branches{/if}
                 </button>
               {/if}
               <span class="group-count">{group.entries.length} commits</span>

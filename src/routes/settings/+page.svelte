@@ -11,6 +11,9 @@
   import PageError from "$lib/components/PageError.svelte";
   import SchedulerSettings from "$lib/components/SchedulerSettings.svelte";
   import NotificationSettings from "$lib/components/NotificationSettings.svelte";
+  import ThemeSettings from "$lib/components/ThemeSettings.svelte";
+  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
 
   let scanRoots = $state<string[]>([]);
   let loading = $state(true);
@@ -183,7 +186,7 @@
                 title="Rescan"
                 onclick={() => handleRescan(root)}
               >
-                ↻
+                <RefreshCw size={14} />
               </button>
               <button
                 class="btn-icon btn-danger"
@@ -191,7 +194,7 @@
                 title="Remove"
                 onclick={() => handleRemove(root)}
               >
-                ×
+                <Trash2 size={14} />
               </button>
             </div>
           </div>
@@ -228,6 +231,7 @@
     {/if}
   </section>
 
+  <ThemeSettings />
   <SchedulerSettings bind:this={schedulerRef} onFeedback={handleFeedback} />
   <NotificationSettings bind:this={notifRef} onFeedback={handleFeedback} />
 

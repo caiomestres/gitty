@@ -2,6 +2,9 @@
 
 Gitty is a workspace synchronization and orchestration platform for developers managing large collections of Git repositories. It discovers repos under your scan roots, keeps them up to date, and surfaces health and change information in a unified dashboard.
 
+!!! info "Privacy-first architecture"
+    Gitty is fully offline — no accounts, no telemetry, no analytics, no cloud sync. Network calls are only made to your own Git remotes and to liveness endpoints you explicitly configure. Read more on the [Privacy](privacy.md) page.
+
 ## Install
 
 Choose the option that fits your platform:

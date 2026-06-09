@@ -5,6 +5,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import type { RepoDto, RepoStatusDto, OpResultDto, GroupDto } from "$lib/types/workspace";
   import type { EnvironmentDto, LivenessResultDto } from "$lib/types/liveness";
+  import LivenessDot from "$lib/components/LivenessDot.svelte";
   import { handleError, success, type ActionFeedback } from "$lib/utils/error-handling";
   import { addToast } from "$lib/stores/toast.svelte";
   import FeedbackBanner from "$lib/components/FeedbackBanner.svelte";
@@ -17,6 +18,9 @@
   import RepoGroupSelect from "$lib/components/RepoGroupSelect.svelte";
   import RepoTagEditor from "$lib/components/RepoTagEditor.svelte";
   import ChangedFilesList from "$lib/components/ChangedFilesList.svelte";
+  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+  import Pencil from "@lucide/svelte/icons/pencil";
+  import X from "@lucide/svelte/icons/x";
 
   let repo = $state<RepoDto | null>(null);
   let status = $state<RepoStatusDto | null>(null);
@@ -454,12 +458,7 @@
             {@const result = getLivenessResult(env.name)}
             <div class="env-card">
               <div class="env-card-main">
-                <span
-                  class="liveness-dot liveness-{status}"
-                  title="{env.name}: {status}{result?.response_time_ms != null
-                    ? ` (${result.response_time_ms}ms)`
-                    : ''}"
-                ></span>
+                <LivenessDot {status} label={env.name} responseTimeMs={result?.response_time_ms} />
                 <div class="env-card-info">
                   <span class="env-name">{env.name}</span>
                   <span class="env-url mono">{env.url}{env.health_path}</span>
@@ -479,19 +478,19 @@
                   disabled={probingEnv === env.name}
                   onclick={() => handleProbeEnv(env.name)}
                 >
-                  {probingEnv === env.name ? "…" : "⟳"}
+                  {#if probingEnv === env.name}…{:else}<RefreshCw size={14} />{/if}
                 </button>
                 <button
                   class="btn-icon"
                   type="button"
                   title="Edit"
-                  onclick={() => startEditEnv(env)}>✎</button
+                  onclick={() => startEditEnv(env)}><Pencil size={14} /></button
                 >
                 <button
                   class="btn-icon btn-icon-danger"
                   type="button"
                   title="Remove"
-                  onclick={() => confirmRemoveEnv(env.name)}>✕</button
+                  onclick={() => confirmRemoveEnv(env.name)}><X size={14} /></button
                 >
               </div>
             </div>
@@ -883,27 +882,5 @@
     font-size: var(--text-xs);
     padding: 1px 6px;
     border-radius: var(--radius-sm);
-  }
-
-  .liveness-dot {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .liveness-up {
-    background: var(--color-success);
-    box-shadow: 0 0 4px color-mix(in srgb, var(--color-success) 40%, transparent);
-  }
-
-  .liveness-down {
-    background: var(--color-error);
-    box-shadow: 0 0 4px color-mix(in srgb, var(--color-error) 40%, transparent);
-  }
-
-  .liveness-gray {
-    background: var(--color-muted-soft);
   }
 </style>

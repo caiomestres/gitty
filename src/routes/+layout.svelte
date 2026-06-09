@@ -3,6 +3,8 @@
   import AppShell from "$lib/components/AppShell.svelte";
   import { getTheme, applyTheme } from "$lib/utils/theme";
   import "$lib/styles/theme-default.css";
+  import "$lib/styles/theme-dark.css";
+  import "$lib/styles/theme-brasil.css";
   import "$lib/styles/global.css";
 
   let { children } = $props();

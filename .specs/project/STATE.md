@@ -90,6 +90,29 @@
 | D84 | CLI reference auto-generated from clap help output; stays in sync automatically | M6 Grilling Q14 | 2026-06-06 |
 | D85 | M6 absorbs outstanding M4 GUI work (sidebar group tree, groups admin, macro builder, macro execution, repo detail enhancements) | M6 Grilling Q15; D23 acknowledged M4 GUI was outstanding | 2026-06-06 |
 | D86 | M6 includes M5 GUI polish (health dashboard, changes page, scheduler settings, notification panel) | M6 Grilling Q16 | 2026-06-06 |
+| D87 | M7 defined: Polish, Identity & Platform Experience — 20 issues in 4 waves under PRD #41 | PRD grilling complete; issues #42–#61 published | 2026-06-08 |
+| D88 | Health/Liveness separation: liveness is independent HTTP probing, does not affect Workspace Health score | ADR-0010 | 2026-06-08 |
+| D89 | Theme system uses full design-token override per theme via `data-theme` attribute; DESIGN.md becomes Default theme spec | ADR-0011 | 2026-06-08 |
+| D90 | 7 feature specs created for M7: m7-ux-revamp (41 reqs), m7-liveness (25 reqs), m7-activity-log (13 reqs), m7-theme-system (22 reqs), m7-brand-identity (12 reqs), m7-privacy (5 reqs), m7-docs (10 reqs) — 128 total requirements | Specs retroactively created after PRD/issues | 2026-06-08 |
+| D91 | `reqwest` added to gitty-core behind `liveness` feature flag for HTTP probing; probe function uses trait/closure injection for mocking | PRD #41 — Liveness Model; refined by D94 | 2026-06-08 |
+| D92 | Activity Log stored in `activity.json` (not Config); ring buffer with configurable limit (default 1000) | PRD #41 — Activity Log | 2026-06-08 |
+| D93 | Mascot artwork done — full SVG (detailed + simplified), PNG matrix (16–1024), ICO, tray icons; per-theme variants via color-shift | PRD #41 — Brand Identity; D106 confirms complete | 2026-06-08 |
+| D94 | `reqwest` in gitty-core behind cargo feature flag `liveness` — keeps crate unified but opt-in; avoids compile-time bloat for CLI-only builds | M7 Grilling Q1 | 2026-06-08 |
+| D95 | Liveness `Environment` added to `Repository` struct via `Vec<Environment>` with `#[serde(default)]` — consistent with tags/group_id pattern | M7 Grilling Q2 | 2026-06-08 |
+| D96 | Keep "Environment" as domain term — CONTEXT.md definition is precise; `.env` file scanning is an implementation detail | M7 Grilling Q3 | 2026-06-08 |
+| D97 | Liveness runs as a separate tick inside the existing scheduler loop — `tick_with_config` runs macro then probes liveness, each on its own interval | M7 Grilling Q4 | 2026-06-08 |
+| D98 | Config schema stays v1 with `#[serde(default)]` for M7 fields; bump to v2 only on breaking change (rename/removal) | M7 Grilling Q5; extends D19 | 2026-06-08 |
+| D99 | Liveness config split: global `liveness` at Config root (defaults/preferences), per-repo `environments` in `workspace.repositories[]`; per-env `interval_seconds` overrides global default | M7 Grilling Q6 | 2026-06-08 |
+| D100 | Activity as 7th sidebar item between Changes and Groups; Liveness page deferred (dashboard dots suffice) | M7 Grilling Q7 | 2026-06-08 |
+| D101 | Onboarding card replaces the existing Dashboard empty state entirely | M7 Grilling Q8 | 2026-06-08 |
+| D102 | Changes page pagination by individual entries (flat), not by groups — group headings repeat across page breaks | M7 Grilling Q9 | 2026-06-08 |
+| D103 | Global search returns repos only — Group/Tag matching means "repos belonging to groups/tags whose name matches the query" | M7 Grilling Q10 | 2026-06-08 |
+| D104 | Native folder picker via `tauri-plugin-dialog`; drag-and-drop via Tauri's built-in `onDragDropEvent` — both Tauri 2 native | M7 Grilling Q11 | 2026-06-08 |
+| D105 | `tokens.css` becomes `theme-default.css` — it IS the Default theme; other themes layer via `[data-theme="dark"]` selectors | M7 Grilling Q12 | 2026-06-08 |
+| D106 | #51 mascot artwork is done (SVGs + full PNG matrix + ICO + tray icons); #59 per-theme variants no longer at schedule risk | M7 Grilling Q13 | 2026-06-08 |
+| D107 | Dark theme defines all tokens (complete coverage) but spacing/radii values match Default — "complete override" means complete coverage, not everything differs | M7 Grilling Q14 | 2026-06-08 |
+| D108 | Skip liveness probes for Missing repos — simpler mental model; consistent with Health check exclusion pattern | M7 Grilling Q15 | 2026-06-08 |
+| D109 | #42 (SVG icon set) replaces ALL emoji/Unicode across the app including the notification bell `🔔`; #52 repositions the already-SVG bell in the new top bar | M7 Grilling Q16 | 2026-06-08 |
 
 ## Blockers
 
@@ -117,7 +140,7 @@ _None currently._
 | ~~Time-windowed Change Dashboard~~ | **Active scope — M5** | ROADMAP.md |
 | Macro JSON import/export | CLI defines steps inline; deferred file-based definition | M2/M4 |
 | ~~Tauri managed state~~ | **Decided (D36):** Managed state + file-watcher in ADR-0007 | M3 → Grilling |
-| Native file picker for Scan Root dialog | Using text input for now; `tauri-plugin-dialog` deferred | M3 |
+| ~~Native file picker for Scan Root dialog~~ | **Active scope — M7 (#43)** | M3 → M7 |
 | ~~Windows code signing via SignPath.io~~ | **Active scope — M6 (D81)** | M5 Grilling → M6 |
 | macOS Apple Developer notarization ($99/yr) | Using free ad-hoc codesign + Homebrew cask for v1 (D82, ADR-0009); full notarization when budget allows | M6 Grilling |
 
@@ -154,3 +177,10 @@ _None currently._
 - [x] M6: Execute `m6-ship` (#30-33)
 - [ ] M6: Thermo-nuclear code quality review (pending)
 - [ ] M6: Close-out (pending — after review)
+- [x] M7: PRD #41 published with 20 vertical-slice issues (#42–#61)
+- [x] M7: 7 feature specs created (128 total requirements traced to issues)
+- [x] M7: Grilling complete — 16 decisions recorded (D94–D109)
+- [x] M7: Wave 1 — SVG icons (#42), folder picker (#43), tooltips (#44), pagination (#45), unregister (#46), activity log (#47), liveness core (#48), theme infra (#49), privacy (#50), mascot (#51) ✓
+- [x] M7: Wave 2 — top bar (#52), onboarding (#53), liveness discovery (#54), liveness notifications (#55), dark theme (#56), brasil theme (#57), theme switcher (#58) ✓
+- [ ] M7: Wave 3 — mascot variants (#59), docs overhaul (#60)
+- [ ] M7: Wave 4 — final docs update (#61)

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { JobDto, StepResultDto } from "$lib/types/workspace";
   import { SvelteSet } from "svelte/reactivity";
+  import X from "@lucide/svelte/icons/x";
 
   interface Props {
     jobs: JobDto[];
@@ -74,7 +75,7 @@
 <section class="results-panel">
   <div class="results-header">
     <h3 class="results-title">Execution Results</h3>
-    <button class="btn-icon" type="button" onclick={onDismiss}>×</button>
+    <button class="btn-icon" type="button" onclick={onDismiss}><X size={16} /></button>
   </div>
   <div class="results-summary">
     <span class="result-stat result-success">{successCount} succeeded</span>

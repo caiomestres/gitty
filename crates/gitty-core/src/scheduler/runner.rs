@@ -112,9 +112,7 @@ fn evaluate_health_with_repos(
         &current_health,
         &config.notifications.trigger,
     ) {
-        let mut history = notification::load_history(config_dir);
-        history.push(notif);
-        let _ = notification::save_history(&history, config_dir);
+        notification::append_to_history(notif, config_dir);
     }
 }
 

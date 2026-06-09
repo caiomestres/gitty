@@ -128,3 +128,9 @@ export interface StepResultDto {
   status: JobStatusName;
   output: string | null;
 }
+
+export interface SearchResultDto {
+  id: string;
+  name: string;
+  path: string;
+}

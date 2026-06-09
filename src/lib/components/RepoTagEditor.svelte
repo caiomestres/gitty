@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ActionFeedback } from "$lib/utils/error-handling";
+  import X from "@lucide/svelte/icons/x";
 
   interface Props {
     tags: string[];
@@ -26,7 +27,7 @@
       <span class="tag-pill">
         {tag}
         <button class="tag-remove" type="button" title="Remove tag" onclick={() => onRemove(tag)}
-          >×</button
+          ><X size={12} /></button
         >
       </span>
     {/each}

@@ -6,6 +6,7 @@
   import type { GroupTreeNodeDto } from "$lib/types/workspace";
   import { onConfigChanged } from "$lib/utils/config-events";
   import type { Component } from "svelte";
+  import Mascot from "./Mascot.svelte";
   import LayoutDashboard from "@lucide/svelte/icons/layout-dashboard";
   import HeartPulse from "@lucide/svelte/icons/heart-pulse";
   import History from "@lucide/svelte/icons/history";
@@ -107,14 +108,7 @@
 
 <nav class="sidebar" aria-label="Main navigation">
   <div class="sidebar-brand" title="Gitty">
-    <img
-      class="brand-mark"
-      src="/brand-mark.svg"
-      alt=""
-      width="28"
-      height="28"
-      aria-hidden="true"
-    />
+    <Mascot size={28} />
     <span class="brand-name">Gitty</span>
   </div>
 
@@ -169,13 +163,6 @@
     align-items: center;
     gap: var(--space-sm);
     padding: var(--space-base);
-  }
-
-  .brand-mark {
-    width: 28px;
-    height: 28px;
-    border-radius: var(--radius-md);
-    object-fit: contain;
   }
 
   .brand-name {

@@ -13,14 +13,18 @@ use state::AppState;
 use tauri::Manager;
 
 /// Run liveness probes for all enabled environments whose interval has elapsed.
-fn liveness_tick(app_state: &AppState, liveness_cache: &Mutex<LivenessCache>) {
-    use gitty_core::liveness;
+/// Tracks state transitions and generates notifications for failures when enabled.
+fn liveness_tick(app_state: &AppState, liveness_cache: &Mutex<LivenessCache>, config_dir: &Path) {
+    use gitty_core::liveness::{self, LivenessStatus};
+    use gitty_core::notification;
     use gitty_core::repository::RepositoryState;
 
     let config = app_state.config();
     if !config.liveness.enabled {
         return;
     }
+
+    let notify_on_failure = config.liveness.notify_on_failure;
 
     let repos_to_probe: Vec<_> = config
         .workspace
@@ -30,7 +34,9 @@ fn liveness_tick(app_state: &AppState, liveness_cache: &Mutex<LivenessCache>) {
         .filter(|r| !r.environments.is_empty())
         .map(|r| {
             let envs: Vec<_> = {
-                let cache = liveness_cache.lock().expect("liveness cache mutex poisoned");
+                let cache = liveness_cache
+                    .lock()
+                    .expect("liveness cache mutex poisoned");
                 r.environments
                     .iter()
                     .filter(|e| e.enabled)
@@ -38,19 +44,44 @@ fn liveness_tick(app_state: &AppState, liveness_cache: &Mutex<LivenessCache>) {
                     .cloned()
                     .collect()
             };
-            (r.id, envs)
+            (r.id, r.display_name().to_string(), envs)
         })
-        .filter(|(_, envs)| !envs.is_empty())
+        .filter(|(_, _, envs)| !envs.is_empty())
         .collect();
 
     drop(config);
 
-    for (repo_id, envs) in repos_to_probe {
+    let mut down_transitions: Vec<notification::LivenessDownTransition> = Vec::new();
+
+    for (repo_id, repo_name, envs) in repos_to_probe {
         for env in &envs {
+            let prev_state: Option<LivenessStatus> = {
+                let cache = liveness_cache
+                    .lock()
+                    .expect("liveness cache mutex poisoned");
+                cache.get(repo_id, &env.name).map(|r| r.status)
+            };
+
             let result = liveness::probe_environment(env, liveness::reqwest_http_get);
-            let mut cache = liveness_cache.lock().expect("liveness cache mutex poisoned");
+            let transitioned_to_down = matches!(result.status, LivenessStatus::Down)
+                && matches!(prev_state, Some(LivenessStatus::Up));
+
+            if transitioned_to_down && notify_on_failure {
+                down_transitions.push(notification::LivenessDownTransition {
+                    repo_name: repo_name.clone(),
+                    env_name: env.name.clone(),
+                });
+            }
+
+            let mut cache = liveness_cache
+                .lock()
+                .expect("liveness cache mutex poisoned");
             cache.store(repo_id, result);
         }
+    }
+
+    if let Some(notif) = notification::generate_liveness_notifications(&down_transitions) {
+        notification::append_to_history(notif, config_dir);
     }
 }
 
@@ -145,7 +176,7 @@ pub fn run() {
                     }
 
                     let cache = app_handle.state::<Mutex<LivenessCache>>();
-                    liveness_tick(&app_state, &cache);
+                    liveness_tick(&app_state, &cache, &config_dir);
 
                     std::thread::sleep(std::time::Duration::from_secs(TICK_INTERVAL_SECS));
                 }
@@ -165,6 +196,7 @@ pub fn run() {
             commands::workspace::checkout_repo,
             commands::workspace::fetch_all,
             commands::workspace::pull_all,
+            commands::workspace::search_repositories,
             commands::groups::list_groups,
             commands::groups::create_group,
             commands::groups::rename_group,
@@ -192,6 +224,7 @@ pub fn run() {
             commands::liveness::get_liveness_results,
             commands::liveness::get_all_liveness_results,
             commands::liveness::get_dashboard_liveness,
+            commands::liveness::discover_endpoints,
             commands::changes::get_changes,
             commands::scheduler::get_scheduler_config,
             commands::scheduler::get_scheduler_status,

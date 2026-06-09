@@ -1,5 +1,7 @@
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
+use gitty_core::activity::OperationType;
 use gitty_core::git::read::{self, ChangeStatus};
 use gitty_core::git::write::{BatchOp, GitResult, RepoOutcome};
 use gitty_core::repository::RepositoryState;
@@ -233,10 +235,24 @@ pub fn list_scan_roots(state: State<'_, AppState>) -> Result<Vec<String>, AppErr
 
 #[tauri::command]
 pub fn scan_directory(state: State<'_, AppState>, path: String) -> Result<ScanResultDto, AppError> {
-    state.with_config_write(|config| {
+    let start = Instant::now();
+    let result = state.with_config_write(|config| {
         let report = scan_and_reconcile(config, Path::new(&path))?;
         Ok(reconcile_to_dto(report))
-    })
+    });
+    let elapsed = start.elapsed().as_millis() as u64;
+    let (details, error) = match &result {
+        Ok(dto) => (Some(format!("{} found, {} new", dto.found, dto.new)), None),
+        Err(e) => (None, Some(e.to_string())),
+    };
+    state.record_activity(
+        OperationType::Scan,
+        Some(path),
+        details,
+        Some(elapsed),
+        error,
+    );
+    result
 }
 
 #[tauri::command]
@@ -258,6 +274,27 @@ pub fn remove_scan_root(state: State<'_, AppState>, path: String) -> Result<(), 
     })
 }
 
+#[tauri::command]
+pub fn unregister_repository(state: State<'_, AppState>, repo_id: String) -> Result<(), AppError> {
+    let uuid = super::parse_uuid(&repo_id)?;
+    let name = {
+        let config = state.config();
+        find_active_repo(&config, &repo_id)
+            .map(|r| r.display_name().to_string())
+            .ok()
+    };
+    state.with_config_write(|config| {
+        if !config.workspace.unregister_repository(uuid) {
+            return Err(AppError::from(gitty_core::CoreError::RepositoryNotFound(
+                uuid,
+            )));
+        }
+        Ok(())
+    })?;
+    state.record_activity(OperationType::Unregister, name, None, None, None);
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Commands — git operations (single repo)
 // ---------------------------------------------------------------------------
@@ -265,25 +302,45 @@ pub fn remove_scan_root(state: State<'_, AppState>, path: String) -> Result<(), 
 fn run_single_repo_op(
     state: &AppState,
     repo_id: &str,
+    op_type: OperationType,
     op: impl FnOnce(&gitty_core::git::write::GitBinary, &Path) -> gitty_core::Result<GitResult>,
 ) -> Result<OpResultDto, AppError> {
     let git = state.git()?;
     let config = state.config();
     let repo = find_active_repo(&config, repo_id)?;
+    let name = repo.display_name().to_string();
     let path = repo.path.clone();
     drop(config);
+    let start = Instant::now();
     let result = op(&git, &path)?;
-    Ok(git_result_to_dto(result))
+    let elapsed = start.elapsed().as_millis() as u64;
+    let dto = git_result_to_dto(result);
+    state.record_activity(
+        op_type,
+        Some(name),
+        None,
+        Some(elapsed),
+        if dto.success {
+            None
+        } else {
+            Some(dto.message.clone())
+        },
+    );
+    Ok(dto)
 }
 
 #[tauri::command]
 pub fn fetch_repo(state: State<'_, AppState>, repo_id: String) -> Result<OpResultDto, AppError> {
-    run_single_repo_op(&state, &repo_id, |git, path| git.fetch(path))
+    run_single_repo_op(&state, &repo_id, OperationType::Fetch, |git, path| {
+        git.fetch(path)
+    })
 }
 
 #[tauri::command]
 pub fn pull_repo(state: State<'_, AppState>, repo_id: String) -> Result<OpResultDto, AppError> {
-    run_single_repo_op(&state, &repo_id, |git, path| git.pull(path))
+    run_single_repo_op(&state, &repo_id, OperationType::Pull, |git, path| {
+        git.pull(path)
+    })
 }
 
 #[tauri::command]
@@ -292,29 +349,94 @@ pub fn checkout_repo(
     repo_id: String,
     branch: String,
 ) -> Result<OpResultDto, AppError> {
-    run_single_repo_op(&state, &repo_id, |git, path| git.checkout(path, &branch))
+    run_single_repo_op(&state, &repo_id, OperationType::Checkout, |git, path| {
+        git.checkout(path, &branch)
+    })
 }
 
 // ---------------------------------------------------------------------------
 // Commands — bulk operations
 // ---------------------------------------------------------------------------
 
-#[tauri::command]
-pub fn fetch_all(state: State<'_, AppState>) -> Result<BulkResultDto, AppError> {
+fn run_bulk_op(
+    state: &AppState,
+    op_type: OperationType,
+    batch_op: &BatchOp,
+) -> Result<BulkResultDto, AppError> {
     let git = state.git()?;
     let config = state.config();
     let repos = config.workspace.repositories.clone();
     drop(config);
-    let batch = git.run_batch_locked(&repos, &BatchOp::Fetch)?;
-    Ok(batch_to_dto(batch))
+    let start = Instant::now();
+    let batch = git.run_batch_locked(&repos, batch_op)?;
+    let elapsed = start.elapsed().as_millis() as u64;
+    let dto = batch_to_dto(batch);
+    let label = match op_type {
+        OperationType::Fetch => "Fetch",
+        OperationType::Pull => "Pull",
+        _ => "Bulk",
+    };
+    state.record_activity(
+        op_type,
+        None,
+        Some(format!(
+            "{label} all: {} succeeded, {} failed",
+            dto.success_count, dto.failed_count
+        )),
+        Some(elapsed),
+        None,
+    );
+    Ok(dto)
+}
+
+#[tauri::command]
+pub fn fetch_all(state: State<'_, AppState>) -> Result<BulkResultDto, AppError> {
+    run_bulk_op(&state, OperationType::Fetch, &BatchOp::Fetch)
 }
 
 #[tauri::command]
 pub fn pull_all(state: State<'_, AppState>) -> Result<BulkResultDto, AppError> {
-    let git = state.git()?;
+    run_bulk_op(&state, OperationType::Pull, &BatchOp::Pull)
+}
+
+// ---------------------------------------------------------------------------
+// Commands — search
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResultDto {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+}
+
+#[tauri::command]
+pub fn search_repositories(
+    state: State<'_, AppState>,
+    query: String,
+) -> Result<Vec<SearchResultDto>, AppError> {
     let config = state.config();
-    let repos = config.workspace.repositories.clone();
-    drop(config);
-    let batch = git.run_batch_locked(&repos, &BatchOp::Pull)?;
-    Ok(batch_to_dto(batch))
+    let q = query.to_lowercase();
+    let mut results = Vec::new();
+
+    for repo in &config.workspace.repositories {
+        let name_match = repo.display_name().to_lowercase().contains(&q);
+        let path_match = repo.path.display().to_string().to_lowercase().contains(&q);
+        let group_match = repo
+            .group_id
+            .and_then(|gid| config.workspace.groups.iter().find(|g| g.id == gid))
+            .map(|g| g.name.to_lowercase().contains(&q))
+            .unwrap_or(false);
+        let tag_match = repo.tags.iter().any(|t| t.to_lowercase().contains(&q));
+
+        if name_match || path_match || group_match || tag_match {
+            results.push(SearchResultDto {
+                id: repo.id.to_string(),
+                name: repo.display_name().to_string(),
+                path: repo.path.display().to_string(),
+            });
+        }
+    }
+
+    Ok(results)
 }

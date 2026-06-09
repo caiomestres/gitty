@@ -61,12 +61,22 @@ _Avoid_: task, work item, run
 ### Health
 
 **Health Check**:
-An evaluation of a single Repository against a specific criterion (freshness, divergence, conflicts, dirty tree, detached HEAD, etc.). Produces a status: healthy, warning, or critical.
-_Avoid_: diagnostic, assessment
+An evaluation of a single Repository against a specific code-hygiene criterion (freshness, divergence, dirty tree, detached HEAD). Produces a status: healthy, warning, or critical. Does NOT include service liveness — that is a separate concept (see Liveness Check).
+_Avoid_: diagnostic, assessment, liveness probe
 
 **Workspace Health**:
-An aggregate score derived from per-Repository Health Checks. Calculated as percentage of Repositories not in critical state. Subsumes the concepts of "AI Readiness" and "Drift Detection" — those are categories of Health Checks, not separate features.
+An aggregate score derived from per-Repository Health Checks. Calculated as percentage of Repositories not in critical state. Liveness status is independent and does not factor into this score.
 _Avoid_: workspace score, readiness score, drift score
+
+### Liveness
+
+**Liveness Check**:
+An HTTP probe against a configured endpoint to determine if a Repository's deployed service is reachable. Produces a binary result: Up or Down. Independent from Health Checks, which evaluate code hygiene. Skipped for Missing Repositories (consistent with Health Check exclusion).
+_Avoid_: health ping, uptime check, heartbeat
+
+**Environment**:
+A named deployment target for a Repository (e.g., "dev", "qa", "hml", "prd"). Has a label, a base URL, and a health path. A Repository can have zero or more Environments. Each Environment is probed independently during Liveness Checks.
+_Avoid_: target, stage, deployment
 
 ### Infrastructure
 
@@ -75,7 +85,7 @@ User-level configuration file resolved via `dirs::config_dir()` (`%APPDATA%\gitt
 _Avoid_: settings, preferences file
 
 **Scheduler**:
-A background automation engine that runs Macros when conditions are met. Default action is `git fetch --all`; configurable to run any Macro. Trigger conditions include time-of-day, day-of-week, and power source.
+A background automation engine that runs Macros and Liveness Checks when conditions are met. Default action is `git fetch --all`; configurable to run any Macro. Also executes periodic Liveness probes at configurable intervals. Trigger conditions include time-of-day, day-of-week, and power source.
 _Avoid_: cron, timer, automation engine
 
 **Lock**:
@@ -85,6 +95,24 @@ _Avoid_: mutex, semaphore
 **Notification**:
 A timestamped record surfaced to the user when a notable event occurs (Health Check entering critical, Scheduler run completing, etc.). Delivered via OS-native toast for critical severity and displayed in an in-app panel for all severities. Stored as a bounded list in Config with a 7-day TTL. Triggers are user-configurable.
 _Avoid_: alert, event, message
+
+### Operations (continued)
+
+**Unregister**:
+The act of removing a Repository from Gitty's registry without affecting the actual git repository on disk. Group assignments, Tags, and Liveness configuration are lost. The repository can be re-discovered by rescanning the Scan Root.
+_Avoid_: delete, remove, archive
+
+### Observability
+
+**Activity Log**:
+A timestamped record of operations Gitty performs (scans, fetches, macro runs, liveness checks, config changes). Stored as a bounded ring buffer in a dedicated file alongside Config. Default limit: 1000 entries, configurable. Provides operational visibility into what Gitty is doing.
+_Avoid_: audit trail, command history, event log
+
+### Presentation
+
+**Theme**:
+A complete set of design tokens (colors, typography, spacing, border radii) that defines the app's visual presentation. Gitty ships with bundled Themes (Default, Dark, World Cup - Brasil); users cannot create custom Themes in v1. Theme preference is stored in Config.
+_Avoid_: skin, style, appearance
 
 ### Deferred (v2)
 

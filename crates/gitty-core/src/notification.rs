@@ -73,6 +73,48 @@ fn format_health_body(health: &WorkspaceHealth) -> String {
     )
 }
 
+/// A liveness state transition from Up to Down for a single environment.
+pub struct LivenessDownTransition {
+    pub repo_name: String,
+    pub env_name: String,
+}
+
+/// Generate liveness notifications when environments transition from Up to Down.
+/// Aggregates multiple failures into a single notification per LIVE-24.
+pub fn generate_liveness_notifications(
+    transitions: &[LivenessDownTransition],
+) -> Option<Notification> {
+    if transitions.is_empty() {
+        return None;
+    }
+
+    let count = transitions.len();
+    let (title, body) = if count == 1 {
+        let t = &transitions[0];
+        (
+            format!("Environment unreachable: {}/{}", t.repo_name, t.env_name),
+            format!(
+                "The {} environment on {} is not responding to health checks",
+                t.env_name, t.repo_name
+            ),
+        )
+    } else {
+        (
+            format!("{} environments unreachable", count),
+            format!("{} environments are not responding to health checks", count),
+        )
+    };
+
+    Some(Notification {
+        id: Uuid::new_v4(),
+        timestamp: OffsetDateTime::now_utc(),
+        severity: Severity::Critical,
+        title,
+        body,
+        read: false,
+    })
+}
+
 /// Generate a health notification by comparing previous and current workspace health.
 /// Returns `None` if no notification should be emitted per the trigger configuration.
 pub fn generate_health_notification(
@@ -161,6 +203,19 @@ pub fn generate_health_notification(
 pub fn purge_expired(notifications: &mut Vec<Notification>, ttl_days: u32) {
     let now = OffsetDateTime::now_utc();
     notifications.retain(|n| (now - n.timestamp).whole_days() < ttl_days as i64);
+}
+
+const MAX_HISTORY: usize = 100;
+
+/// Append a notification to the persisted history, enforcing a cap of 100
+/// entries, and save atomically.
+pub fn append_to_history(notification: Notification, dir: &Path) {
+    let mut history = load_history(dir);
+    history.push(notification);
+    if history.len() > MAX_HISTORY {
+        history = history.split_off(history.len() - MAX_HISTORY);
+    }
+    let _ = save_history(&history, dir);
 }
 
 // ---------------------------------------------------------------------------

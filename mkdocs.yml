@@ -1,11 +1,15 @@
 site_name: Gitty
 site_description: Workspace synchronization and orchestration for Git repositories
+site_author: Caio Mestres
+copyright: "Copyright &copy; 2026 Caio Mestres"
 repo_url: https://github.com/caiomestres/gitty
 repo_name: caiomestres/gitty
 edit_uri: edit/main/docs/
 
 theme:
   name: material
+  logo: assets/favicon.svg
+  favicon: assets/favicon.ico
   palette:
     - scheme: default
       primary: custom
@@ -20,31 +24,110 @@ theme:
         icon: material/brightness-4
         name: Switch to light mode
   features:
+    - navigation.tabs
     - navigation.sections
     - navigation.expand
+    - navigation.instant
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - search.share
     - content.code.copy
+    - content.code.annotate
+    - content.tooltips
+    - header.autohide
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+
+extra_css:
+  - stylesheets/extra.css
 
 extra:
-  css:
-    - stylesheets/extra.css
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/caiomestres/gitty
+  version:
+    provider: mike
 
 nav:
-  - Getting Started: index.md
-  - Concepts: concepts.md
-  - CLI Reference: cli-reference.md
-  - GUI Guide: gui-guide.md
+  - Introduction:
+      - Getting Started: index.md
+      - Installation: intro/installation.md
+      - Quick Start: intro/quickstart.md
+      - FAQ: intro/faq.md
+
+  - Core Concepts:
+      - Overview: concepts/index.md
+      - Concepts (Legacy): concepts.md
+      - Domain Model: concepts/domain.md
+      - Repository: concepts/repository.md
+      - Groups & Tags: concepts/organization.md
+      - Health: concepts/health.md
+      - Liveness: concepts/liveness.md
+      - Macros: concepts/macros.md
+      - Scheduler: concepts/scheduler.md
+      - Activity Log: concepts/activity.md
+
+  - GUI Guide:
+      - Overview: gui/index.md
+      - GUI Guide (Legacy): gui-guide.md
+      - Dashboard: gui/dashboard.md
+      - Repository Detail: gui/repository.md
+      - Health View: gui/health.md
+      - Changes View: gui/changes.md
+      - Activity Log: gui/activity.md
+      - Groups: gui/groups.md
+      - Macros: gui/macros.md
+      - Settings: gui/settings.md
+      - Themes: gui/themes.md
+
+  - CLI Reference:
+      - Overview: cli/index.md
+      - Core Commands: cli/core.md
+      - Organization: cli/organization.md
+      - Automation: cli/automation.md
+      - Full Reference: cli-reference.md
+
+  - Advanced:
+      - Configuration: advanced/config.md
+      - Troubleshooting: advanced/troubleshooting.md
+      - Privacy & Security: privacy.md
+      - Development: advanced/development.md
+      - Architecture: advanced/architecture.md
+
+not_in_nav: |
+  adr/*
+  agents/*
 
 exclude_docs: |
   adr/
   agents/
 
 plugins:
-  - search
+  - search:
+      lang: en
+      separator: '[\s\-,:!=\[\]]+|(?=\.|\(|\))+'
 
 markdown_extensions:
   - admonition
   - pymdownx.details
-  - pymdownx.superfences
-  - pymdownx.highlight
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: "!!python/name:pymdownx.superfences.fence_code_format"
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.keys
   - toc:
       permalink: true
+      permalink_title: Anchor link to this section

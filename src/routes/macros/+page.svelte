@@ -9,6 +9,8 @@
   import FeedbackBanner from "$lib/components/FeedbackBanner.svelte";
   import PageError from "$lib/components/PageError.svelte";
   import Dialog from "$lib/components/Dialog.svelte";
+  import Pencil from "@lucide/svelte/icons/pencil";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
 
   let macros = $state<MacroDto[]>([]);
   let loading = $state(true);
@@ -172,13 +174,13 @@
               Run
             </button>
             <button class="btn-icon" type="button" title="Edit" onclick={() => openEditBuilder(m)}
-              >✎</button
+              ><Pencil size={14} /></button
             >
             <button
               class="btn-icon btn-danger"
               type="button"
               title="Delete"
-              onclick={() => openDelete(m)}>×</button
+              onclick={() => openDelete(m)}><Trash2 size={14} /></button
             >
           </div>
         </div>

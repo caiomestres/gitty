@@ -1,5 +1,6 @@
 <script lang="ts">
   import { getToasts, dismissToast } from "$lib/stores/toast.svelte";
+  import X from "@lucide/svelte/icons/x";
 
   const toasts = $derived(getToasts());
 </script>
@@ -23,7 +24,7 @@
           onclick={() => dismissToast(toast.id)}
           aria-label="Dismiss"
         >
-          ×
+          <X size={14} />
         </button>
       </div>
     {/each}

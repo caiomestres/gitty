@@ -1,0 +1,80 @@
+/* World Cup - Brasil Theme - Full design token override */
+[data-theme="world-cup-brasil"] {
+  /* Colors - Brasil national palette
+   * Green: #009c3b (Bandeira verde)
+   * Yellow: #ffdf00 (Amarelo ouro)
+   * Blue: #002776 (Azul anil - ordem e progresso)
+   * White: #ffffff
+   */
+  --color-primary: #009c3b;
+  --color-primary-active: #007a2e;
+  --color-ink: #1a1a1a;
+  --color-body: #4a4a4a;
+  --color-muted: #6b6b6b;
+  --color-muted-soft: #8b8b8b;
+  --color-hairline: #e8d5a3;
+  --color-hairline-soft: #f0e4c0;
+  --color-hairline-strong: #d4c480;
+  --color-canvas: #fffdf5;
+  --color-canvas-soft: #fffbe8;
+  --color-surface-card: #ffffff;
+  --color-surface-strong: #f5f0d5;
+  --color-on-primary: #ffffff;
+  --color-success: #009c3b;
+  --color-warning: #ffaa00;
+  --color-error: #e11d2e;
+  --color-ok: #009c3b;
+  --color-critical: #e11d2e;
+  --color-accent: #009c3b;
+
+  /* Typography - Same as default theme */
+  --font-sans: "Inter", system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+
+  /* Font Sizes - Same as default theme */
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-caption: 13px;
+  --text-body: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 26px;
+  --text-3xl: 28px;
+  --text-4xl: 36px;
+
+  /* Spacing - Same as default theme */
+  --space-xxs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-base: 16px;
+  --space-md: 20px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-xxl: 48px;
+  --space-section: 80px;
+
+  /* Radii - Same as default theme */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 9999px;
+
+  /* Mascot colors - green/yellow/blue national colors */
+  --mascot-bg: #ffdf00;
+  --mascot-mane-primary: #009c3b;
+  --mascot-mane-secondary: #007a2e;
+  --mascot-face: #002776;
+  --mascot-face-shadow: rgba(0, 39, 118, 0.15);
+  --mascot-eye: #002776;
+  --mascot-muzzle: rgba(0, 39, 118, 0.4);
+}
+
+/* Selection highlights */
+[data-theme="world-cup-brasil"] ::selection {
+  background: rgba(0, 156, 59, 0.3);
+  color: #002776;
+}

@@ -7,6 +7,9 @@
   import FeedbackBanner from "$lib/components/FeedbackBanner.svelte";
   import PageError from "$lib/components/PageError.svelte";
   import Dialog from "$lib/components/Dialog.svelte";
+  import Pencil from "@lucide/svelte/icons/pencil";
+  import MoveVertical from "@lucide/svelte/icons/move-vertical";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
 
   let groups = $state<GroupDto[]>([]);
   let tree = $state<GroupTreeNodeDto[]>([]);
@@ -155,16 +158,16 @@
       {/if}
       <div class="tree-actions">
         <button class="btn-icon" type="button" title="Rename" onclick={() => openRename(node.group)}
-          >✎</button
+          ><Pencil size={14} /></button
         >
         <button class="btn-icon" type="button" title="Move" onclick={() => openMove(node.group)}
-          >↕</button
+          ><MoveVertical size={14} /></button
         >
         <button
           class="btn-icon btn-danger"
           type="button"
           title="Delete"
-          onclick={() => openDelete(node.group)}>×</button
+          onclick={() => openDelete(node.group)}><Trash2 size={14} /></button
         >
       </div>
     </div>

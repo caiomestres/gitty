@@ -14,12 +14,11 @@
 </script>
 
 <div class="app-shell">
-  <div class="top-bar">
-    <StatusBar />
-    <div class="top-bar-actions">
+  <StatusBar>
+    {#snippet notification()}
       <NotificationPanel />
-    </div>
-  </div>
+    {/snippet}
+  </StatusBar>
   <div class="app-body">
     <Sidebar />
     <main class="main-content">
@@ -37,19 +36,6 @@
     height: 100vh;
     overflow: hidden;
     background: var(--color-canvas);
-  }
-
-  .top-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .top-bar-actions {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    padding-right: var(--space-base);
   }
 
   .app-body {

@@ -36,6 +36,9 @@ gitty/
 
 ## Mandatory Rules
 
+### RULES ABOVE ALL OTHER RULES 
+**UNDER NO CIRCUMSTANCE YOU ARE ALLOWED TO USE SUBAGENTS**
+
 ### UI Changes
 
 **Before ANY frontend or UI change, reference `DESIGN.md` first.** It contains the complete design system: colors, typography, spacing, components, and do's/don'ts. Every UI decision must align with it. No exceptions.

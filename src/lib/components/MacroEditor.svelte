@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { StepDto } from "$lib/types/workspace";
   import StepKindEditor from "./StepKindEditor.svelte";
+  import X from "@lucide/svelte/icons/x";
 
   interface Props {
     editingId: string | null;
@@ -113,7 +114,7 @@
               class="btn-icon btn-sm btn-danger"
               type="button"
               title="Remove"
-              onclick={() => removeStep(i)}>×</button
+              onclick={() => removeStep(i)}><X size={14} /></button
             >
           </div>
         </div>
@@ -171,7 +172,7 @@
                     onclick={() => {
                       step.rollback = null;
                       steps = [...steps];
-                    }}>×</button
+                    }}><X size={14} /></button
                   >
                 </div>
                 <div class="rollback-body">
@@ -237,7 +238,7 @@
         <span class="var-eq">=</span>
         <input class="field-input" type="text" placeholder="value" bind:value={v.value} />
         <button class="btn-icon btn-sm btn-danger" type="button" onclick={() => removeVar(i)}>
-          ×
+          <X size={14} />
         </button>
       </div>
     {/each}

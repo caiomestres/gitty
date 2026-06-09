@@ -103,3 +103,39 @@ Split into 3 sub-features (D72):
 - ✓ **macOS ad-hoc signing** — Free codesign + Gatekeeper bypass docs + Homebrew cask tap (D82, ADR-0009)
 - ✓ **Full docs site** — MkDocs Material, source in `docs/`, deployed to GitHub Pages (D83)
 - ✓ **CLI reference** — Auto-generated from clap help output (D84)
+
+## Milestone 7: Polish, Identity & Platform Experience
+
+> Brand identity, liveness monitoring, UX revamp, activity log, theme system, privacy communication, documentation overhaul. PRD #41.
+
+### Wave 1 — Foundations (no dependencies, can start immediately) ✓
+
+- [x] **SVG icon set** — Replace emoji/Unicode icons with consistent monochrome SVG set (#42)
+- [x] **Native folder picker** — Tauri dialog.open() for Scan Roots + drag-and-drop on Settings (#43)
+- [x] **Tooltips** — Add tooltips to all status indicators and domain terms (#44)
+- [x] **Pagination** — User-configurable pagination (10/25/50/100) for Dashboard and Changes tables (#45)
+- [x] **Unregister Repository** — Remove from tracking without touching disk; confirmation dialog (#46)
+- [x] **Activity Log** — Operation history with filterable sidebar page, ring buffer storage (#47)
+- [x] **Liveness core pipeline** — Model, probing, scheduler integration, dashboard dots (#48)
+- [x] **Theme infrastructure** — Design-token override system + Default theme extraction (#49)
+- [x] **Privacy communication** — In-app About section + docs Privacy page (#50)
+- [x] **Mascot artwork** — Generate golden lion tamarin illustration + export icon assets (#51)
+
+### Wave 2 — Build on Wave 1 ✓
+
+- [x] **Top bar redesign** — Health indicator, global search, SVG notification bell (#52) ← #42
+- [x] **Onboarding card** — First-run guidance on empty Dashboard (#53) ← #43
+- [x] **Liveness endpoint discovery** — Convention-based scanning of docker-compose, Dockerfile, .env, k8s (#54) ← #48
+- [x] **Liveness notifications** — Optional alerts on probe failure (#55) ← #48
+- [x] **Dark theme** — Full design-token override (#56) ← #49
+- [x] **World Cup - Brasil theme** — Full design-token override (#57) ← #49
+- [x] **Theme switcher UI** — Settings preview cards + bottom bar toggle (#58) ← #49
+
+### Wave 3 — Integration ✓
+
+- [x] **Mascot per-theme variants** — Color-shifted variants across all touchpoints (#59) ← #51, #49
+- [x] **Documentation overhaul** — Bruno-quality MkDocs Material theme + expanded content (#60)
+
+### Wave 4 — Final
+
+- [ ] **Final documentation update** — README, CONTEXT.md, DESIGN.md, all docs (#61) ← #42–#60

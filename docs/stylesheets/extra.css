@@ -1,14 +1,657 @@
-:root,
-[data-md-color-scheme="default"] {
+/**
+ * Gitty Documentation Theme
+ * Bruno-quality MkDocs Material with Gitty brand palette
+ *
+ * Brand colors:
+ * - Cursor Orange: #f54e00 (primary)
+ * - Warm Cream: #f7f7f4 (canvas)
+ * - Ink: #26251e (text)
+ * - Body: #5a5852 (secondary text)
+ */
+
+/* ========================================
+   CSS VARIABLES
+   ======================================== */
+
+:root {
+  /* Gitty Brand Palette */
+  --gitty-orange: #f54e00;
+  --gitty-orange-dark: #d04200;
+  --gitty-cream: #f7f7f4;
+  --gitty-cream-soft: #fafaf7;
+  --gitty-ink: #26251e;
+  --gitty-body: #5a5852;
+  --gitty-muted: #807d72;
+  --gitty-hairline: #e6e5e0;
+  --gitty-surface: #ffffff;
+
+  /* Typography */
+  --gitty-font-sans:
+    "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --gitty-font-mono: "JetBrains Mono", "Fira Code", Consolas, Monaco, monospace;
+
+  /* Override Material theme variables */
   --md-primary-fg-color: #f54e00;
-  --md-primary-fg-color--light: #ff6a1f;
+  --md-primary-fg-color--light: #ff7a3d;
   --md-primary-fg-color--dark: #d04200;
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: #fafaf7;
+
   --md-accent-fg-color: #f54e00;
+  --md-accent-fg-color--transparent: rgba(245, 78, 0, 0.1);
+
+  --md-default-fg-color: #26251e;
+  --md-default-fg-color--light: #5a5852;
+  --md-default-fg-color--lighter: #807d72;
+  --md-default-fg-color--lightest: #a09c92;
+
+  --md-default-bg-color: #f7f7f4;
+  --md-default-bg-color--light: #fafaf7;
+  --md-default-bg-color--lighter: #ffffff;
+  --md-default-bg-color--dark: #e6e5e0;
+
+  --md-code-fg-color: #26251e;
+  --md-code-bg-color: #fafaf7;
+  --md-code-hl-color: rgba(245, 78, 0, 0.15);
+
+  --md-typeset-color: #26251e;
+  --md-typeset-a-color: #f54e00;
+
+  /* Admonitions */
+  --md-admonition-fg-color: #26251e;
+  --md-admonition-bg-color: #ffffff;
+
+  /* Footer */
+  --md-footer-fg-color: #5a5852;
+  --md-footer-fg-color--light: #807d72;
+  --md-footer-bg-color: #fafaf7;
+  --md-footer-bg-color--dark: #f7f7f4;
 }
 
+/* ========================================
+   TYPOGRAPHY
+   ======================================== */
+
+/* Load Inter and JetBrains Mono from Google Fonts */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+.md-typeset {
+  font-family: var(--gitty-font-sans);
+  font-size: 0.85rem;
+  line-height: 1.65;
+  color: var(--gitty-ink);
+}
+
+.md-typeset h1 {
+  font-family: var(--gitty-font-sans);
+  font-weight: 600;
+  font-size: 2rem;
+  color: var(--gitty-ink);
+  letter-spacing: -0.02em;
+  margin-bottom: 1rem;
+}
+
+.md-typeset h2 {
+  font-family: var(--gitty-font-sans);
+  font-weight: 600;
+  font-size: 1.5rem;
+  color: var(--gitty-ink);
+  letter-spacing: -0.01em;
+  border-bottom: 1px solid var(--gitty-hairline);
+  padding-bottom: 0.5rem;
+  margin-top: 2rem;
+}
+
+.md-typeset h3 {
+  font-family: var(--gitty-font-sans);
+  font-weight: 600;
+  font-size: 1.15rem;
+  color: var(--gitty-ink);
+  margin-top: 1.75rem;
+}
+
+.md-typeset h4 {
+  font-family: var(--gitty-font-sans);
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--gitty-body);
+  margin-top: 1.5rem;
+}
+
+/* ========================================
+   CODE & MONO
+   ======================================== */
+
+.md-typeset code {
+  font-family: var(--gitty-font-mono);
+  font-size: 0.8em;
+  font-weight: 500;
+  background-color: var(--gitty-cream-soft);
+  border: 1px solid var(--gitty-hairline);
+  border-radius: 4px;
+  padding: 0.15em 0.4em;
+}
+
+.md-typeset pre {
+  background-color: var(--gitty-cream-soft);
+  border: 1px solid var(--gitty-hairline);
+  border-radius: 8px;
+}
+
+.md-typeset pre > code {
+  font-family: var(--gitty-font-mono);
+  font-size: 0.75rem;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+/* Code annotations */
+.md-typeset .md-annotation__index {
+  font-family: var(--gitty-font-mono);
+  font-size: 0.65rem;
+  background-color: var(--gitty-orange);
+  color: white;
+}
+
+/* ========================================
+   LINKS
+   ======================================== */
+
+.md-typeset a {
+  color: var(--gitty-orange);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.md-typeset a:hover {
+  color: var(--gitty-orange-dark);
+  text-decoration: underline;
+}
+
+.md-typeset a:focus {
+  outline: 2px solid var(--gitty-orange);
+  outline-offset: 2px;
+}
+
+/* ========================================
+   HEADER & NAVIGATION
+   ======================================== */
+
+.md-header {
+  background-color: var(--gitty-cream);
+  border-bottom: 1px solid var(--gitty-hairline);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.md-header__title {
+  font-family: var(--gitty-font-sans);
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--gitty-ink);
+}
+
+.md-header__button {
+  color: var(--gitty-body);
+}
+
+.md-header__button:hover {
+  color: var(--gitty-orange);
+}
+
+/* Navigation tabs */
+.md-tabs {
+  background-color: var(--gitty-cream);
+  border-bottom: 1px solid var(--gitty-hairline);
+}
+
+.md-tabs__link {
+  font-family: var(--gitty-font-sans);
+  font-weight: 500;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gitty-body);
+  opacity: 1;
+}
+
+.md-tabs__link:hover {
+  color: var(--gitty-orange);
+}
+
+.md-tabs__link--active {
+  color: var(--gitty-orange);
+}
+
+/* ========================================
+   SIDEBAR
+   ======================================== */
+
+.md-sidebar {
+  background-color: var(--gitty-cream);
+}
+
+.md-sidebar__scrollwrap {
+  background-color: var(--gitty-cream);
+}
+
+.md-nav {
+  font-family: var(--gitty-font-sans);
+  font-size: 0.75rem;
+}
+
+.md-nav__link {
+  color: var(--gitty-body);
+  font-weight: 500;
+}
+
+.md-nav__link:hover {
+  color: var(--gitty-orange);
+}
+
+.md-nav__link--active {
+  color: var(--gitty-orange);
+  font-weight: 600;
+}
+
+.md-nav__item--nested > .md-nav__link {
+  font-weight: 600;
+  color: var(--gitty-ink);
+}
+
+/* ========================================
+   CONTENT AREA
+   ======================================== */
+
+.md-content {
+  background-color: var(--gitty-cream);
+}
+
+.md-content__inner {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 1.5rem 2rem;
+}
+
+/* ========================================
+   TABLES
+   ======================================== */
+
+.md-typeset table {
+  border: 1px solid var(--gitty-hairline);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.8rem;
+}
+
+.md-typeset table th {
+  background-color: var(--gitty-cream-soft);
+  font-weight: 600;
+  color: var(--gitty-ink);
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--gitty-hairline);
+}
+
+.md-typeset table td {
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--gitty-hairline);
+}
+
+.md-typeset table tr:last-child td {
+  border-bottom: none;
+}
+
+.md-typeset table tr:hover td {
+  background-color: var(--gitty-cream-soft);
+}
+
+/* ========================================
+   ADMONITIONS (CALL-OUTS)
+   ======================================== */
+
+.md-typeset .admonition {
+  border-radius: 8px;
+  border: 1px solid var(--gitty-hairline);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.md-typeset .admonition-title {
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+/* Custom admonition colors */
+.md-typeset .admonition.note {
+  border-left-color: var(--gitty-orange);
+}
+
+.md-typeset .admonition.note > .admonition-title {
+  background-color: rgba(245, 78, 0, 0.1);
+  color: var(--gitty-orange-dark);
+}
+
+.md-typeset .admonition.tip {
+  border-left-color: #1f8a65;
+}
+
+.md-typeset .admonition.tip > .admonition-title {
+  background-color: rgba(31, 138, 101, 0.1);
+  color: #1f8a65;
+}
+
+.md-typeset .admonition.warning {
+  border-left-color: #c08532;
+}
+
+.md-typeset .admonition.warning > .admonition-title {
+  background-color: rgba(192, 133, 50, 0.1);
+  color: #c08532;
+}
+
+.md-typeset .admonition.danger {
+  border-left-color: #cf2d56;
+}
+
+.md-typeset .admonition.danger > .admonition-title {
+  background-color: rgba(207, 45, 86, 0.1);
+  color: #cf2d56;
+}
+
+/* ========================================
+   SEARCH
+   ======================================== */
+
+.md-search__input {
+  font-family: var(--gitty-font-sans);
+  background-color: var(--gitty-cream-soft);
+  border: 1px solid var(--gitty-hairline);
+  border-radius: 6px;
+  color: var(--gitty-ink);
+}
+
+.md-search__input::placeholder {
+  color: var(--gitty-muted);
+}
+
+.md-search__output {
+  background-color: var(--gitty-surface);
+  border: 1px solid var(--gitty-hairline);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.md-search-result__title {
+  font-weight: 600;
+  color: var(--gitty-ink);
+}
+
+.md-search-result__teaser {
+  color: var(--gitty-body);
+}
+
+.md-search-result mark {
+  background-color: rgba(245, 78, 0, 0.2);
+  color: var(--gitty-orange-dark);
+}
+
+/* ========================================
+   FOOTER
+   ======================================== */
+
+.md-footer {
+  background-color: var(--gitty-cream);
+  border-top: 1px solid var(--gitty-hairline);
+}
+
+.md-footer-meta {
+  background-color: var(--gitty-cream-soft);
+}
+
+.md-footer__inner {
+  color: var(--gitty-body);
+  font-size: 0.75rem;
+}
+
+.md-footer a {
+  color: var(--gitty-orange);
+}
+
+.md-footer a:hover {
+  color: var(--gitty-orange-dark);
+}
+
+/* ========================================
+   HERO / LANDING PAGE
+   ======================================== */
+
+.md-content__inner h1:first-child {
+  margin-top: 0;
+}
+
+/* Big intro text */
+.md-typeset .gitty-intro {
+  font-size: 1.1rem;
+  color: var(--gitty-body);
+  line-height: 1.7;
+  margin-bottom: 2rem;
+}
+
+/* Feature cards */
+.md-typeset .grid.cards {
+  gap: 1rem;
+}
+
+.md-typeset .grid.cards > * {
+  background-color: var(--gitty-surface);
+  border: 1px solid var(--gitty-hairline);
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.md-typeset .grid.cards > *:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.md-typeset .grid.cards h2 {
+  border-bottom: none;
+  padding-bottom: 0;
+  font-size: 1.1rem;
+  margin-top: 0;
+}
+
+.md-typeset .grid.cards h2 .twemoji {
+  color: var(--gitty-orange);
+}
+
+/* ========================================
+   BUTTONS
+   ======================================== */
+
+.md-typeset .md-button {
+  font-family: var(--gitty-font-sans);
+  font-weight: 500;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  transition: all 0.15s ease;
+}
+
+.md-typeset .md-button--primary {
+  background-color: var(--gitty-orange);
+  border-color: var(--gitty-orange);
+  color: white;
+}
+
+.md-typeset .md-button--primary:hover {
+  background-color: var(--gitty-orange-dark);
+  border-color: var(--gitty-orange-dark);
+  color: white;
+}
+
+.md-typeset .md-button:not(.md-button--primary) {
+  color: var(--gitty-orange);
+  border-color: var(--gitty-hairline);
+}
+
+.md-typeset .md-button:not(.md-button--primary):hover {
+  border-color: var(--gitty-orange);
+  color: var(--gitty-orange-dark);
+}
+
+/* ========================================
+   PERMALINKS
+   ======================================== */
+
+.md-typeset .headerlink {
+  color: var(--gitty-muted);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.md-typeset h1:hover .headerlink,
+.md-typeset h2:hover .headerlink,
+.md-typeset h3:hover .headerlink,
+.md-typeset h4:hover .headerlink {
+  opacity: 1;
+}
+
+.md-typeset .headerlink:hover {
+  color: var(--gitty-orange);
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+/* Status badges */
+.gitty-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25em 0.6em;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.gitty-badge--success {
+  background-color: rgba(31, 138, 101, 0.1);
+  color: #1f8a65;
+}
+
+.gitty-badge--warning {
+  background-color: rgba(192, 133, 50, 0.1);
+  color: #c08532;
+}
+
+.gitty-badge--error {
+  background-color: rgba(207, 45, 86, 0.1);
+  color: #cf2d56;
+}
+
+.gitty-badge--info {
+  background-color: rgba(245, 78, 0, 0.1);
+  color: var(--gitty-orange-dark);
+}
+
+/* Keyboard keys */
+.gitty-kbd {
+  font-family: var(--gitty-font-mono);
+  font-size: 0.75em;
+  background-color: var(--gitty-cream-soft);
+  border: 1px solid var(--gitty-hairline);
+  border-radius: 4px;
+  padding: 0.2em 0.4em;
+  box-shadow: 0 1px 0 var(--gitty-hairline);
+}
+
+/* ========================================
+   RESPONSIVE
+   ======================================== */
+
+@media screen and (max-width: 76.1875em) {
+  .md-content__inner {
+    padding: 1rem;
+  }
+
+  .md-typeset h1 {
+    font-size: 1.75rem;
+  }
+
+  .md-typeset h2 {
+    font-size: 1.35rem;
+  }
+}
+
+@media screen and (max-width: 59.9375em) {
+  .md-sidebar {
+    background-color: var(--gitty-surface);
+  }
+}
+
+/* ========================================
+   DARK MODE
+   ======================================== */
+
 [data-md-color-scheme="slate"] {
-  --md-primary-fg-color: #f54e00;
-  --md-primary-fg-color--light: #ff6a1f;
-  --md-primary-fg-color--dark: #d04200;
-  --md-accent-fg-color: #f54e00;
+  --gitty-cream: #1a1a2e;
+  --gitty-cream-soft: #252536;
+  --gitty-ink: #f0f0f0;
+  --gitty-body: #b8b8b8;
+  --gitty-muted: #888888;
+  --gitty-hairline: #3a3a4a;
+  --gitty-surface: #252536;
+}
+
+[data-md-color-scheme="slate"] .md-typeset {
+  color: var(--gitty-ink);
+}
+
+[data-md-color-scheme="slate"] .md-typeset h1,
+[data-md-color-scheme="slate"] .md-typeset h2,
+[data-md-color-scheme="slate"] .md-typeset h3 {
+  color: var(--gitty-ink);
+}
+
+[data-md-color-scheme="slate"] .md-typeset code {
+  background-color: #2d2d40;
+  border-color: #3a3a4a;
+}
+
+[data-md-color-scheme="slate"] .md-typeset pre {
+  background-color: #2d2d40;
+  border-color: #3a3a4a;
+}
+
+[data-md-color-scheme="slate"] .md-header,
+[data-md-color-scheme="slate"] .md-tabs,
+[data-md-color-scheme="slate"] .md-sidebar {
+  background-color: var(--gitty-cream);
+}
+
+[data-md-color-scheme="slate"] .md-content {
+  background-color: var(--gitty-cream);
+}
+
+[data-md-color-scheme="slate"] .md-typeset table th {
+  background-color: var(--gitty-cream-soft);
+}
+
+[data-md-color-scheme="slate"] .md-typeset table tr:hover td {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+[data-md-color-scheme="slate"] .md-search__input {
+  background-color: var(--gitty-cream-soft);
+  color: var(--gitty-ink);
+}
+
+[data-md-color-scheme="slate"] .md-search__output {
+  background-color: var(--gitty-surface);
 }
