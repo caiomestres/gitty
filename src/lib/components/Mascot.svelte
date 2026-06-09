@@ -14,33 +14,23 @@
   fill="none"
   xmlns="http://www.w3.org/2000/svg"
   class={className}
-  aria-label="Gitty mascot"
+  aria-label="Gitty logo"
 >
-  <!-- Body/Circle background -->
-  <circle
-    cx="16"
-    cy="16"
-    r="15"
-    class="mascot-bg"
-    stroke="currentColor"
-    stroke-width="1.5"
-    stroke-opacity="0.2"
+  <!-- Folder -->
+  <path
+    d="M27.5,5.5H18.2L16.1,9.7H4.4V26.5H29.6V5.5Zm0,4.2H19.3l1.1-2.1h7.1Z"
+    class="logo-folder"
   />
-
-  <!-- Face - simplified lion tamarin silhouette -->
-  <ellipse cx="16" cy="17" rx="7" ry="8" class="mascot-face-shadow" />
-
-  <!-- Ears (the mane) - golden tufts (themeable) -->
-  <circle cx="9" cy="12" r="4" class="mascot-mane-secondary" />
-  <circle cx="23" cy="12" r="4" class="mascot-mane-secondary" />
-  <circle cx="10" cy="9" r="3" class="mascot-mane-primary" />
-  <circle cx="22" cy="9" r="3" class="mascot-mane-primary" />
-
-  <!-- Face -->
-  <circle cx="16" cy="17" r="5" class="mascot-face" />
-  <circle cx="14" cy="16" r="1" class="mascot-eye" />
-  <circle cx="18" cy="16" r="1" class="mascot-eye" />
-  <ellipse cx="16" cy="19" rx="2" ry="1.5" class="mascot-muzzle" />
+  <!-- Git diamond badge -->
+  <path
+    d="M30.6,19.565,21.435,10.4a1.352,1.352,0,0,0-1.913,0l-1.9,1.9,2.415,2.415a1.606,1.606,0,0,1,2.034,2.047L24.4,19.091a1.607,1.607,0,1,1-.964.907L21.26,17.827V23.54a1.606,1.606,0,1,1-1.323-.047V17.727a1.61,1.61,0,0,1-.873-2.11l-2.381-2.381L10.4,19.522a1.353,1.353,0,0,0,0,1.913L19.565,30.6a1.353,1.353,0,0,0,1.913,0L30.6,21.478a1.353,1.353,0,0,0,0-1.913"
+    class="logo-badge"
+  />
+  <!-- Git branch symbol -->
+  <path
+    d="M17.619,12.3l2.415,2.415a1.606,1.606,0,0,1,2.034,2.047L24.4,19.091a1.607,1.607,0,1,1-.964.907L21.26,17.827V23.54a1.606,1.606,0,1,1-1.323-.047V17.727a1.61,1.61,0,0,1-.873-2.11l-2.381-2.381"
+    class="logo-symbol"
+  />
 </svg>
 
 <style>
@@ -48,31 +38,15 @@
     flex-shrink: 0;
   }
 
-  .mascot-bg {
-    fill: var(--mascot-bg, #f5f0e8);
+  .logo-folder {
+    fill: var(--logo-folder, #bf5e55);
   }
 
-  .mascot-mane-primary {
-    fill: var(--mascot-mane-primary, #e8c9a0);
+  .logo-badge {
+    fill: var(--logo-badge, #dd4c35);
   }
 
-  .mascot-mane-secondary {
-    fill: var(--mascot-mane-secondary, #d4a574);
-  }
-
-  .mascot-face {
-    fill: var(--mascot-face, #8b7355);
-  }
-
-  .mascot-face-shadow {
-    fill: var(--mascot-face-shadow, rgba(26, 26, 26, 0.15));
-  }
-
-  .mascot-eye {
-    fill: var(--mascot-eye, #1a1a1a);
-  }
-
-  .mascot-muzzle {
-    fill: var(--mascot-muzzle, rgba(26, 26, 26, 0.3));
+  .logo-symbol {
+    fill: var(--logo-symbol, #ffffff);
   }
 </style>

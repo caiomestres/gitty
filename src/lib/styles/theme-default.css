@@ -57,12 +57,8 @@
   --radius-xl: 16px;
   --radius-pill: 9999px;
 
-  /* Mascot colors - Default (Golden Lion Tamarin) */
-  --mascot-bg: #f5f0e8;
-  --mascot-mane-primary: #e8c9a0;
-  --mascot-mane-secondary: #d4a574;
-  --mascot-face: #8b7355;
-  --mascot-face-shadow: rgba(26, 26, 26, 0.15);
-  --mascot-eye: #1a1a1a;
-  --mascot-muzzle: rgba(26, 26, 26, 0.3);
+  /* Logo colors - Default */
+  --logo-folder: #bf5e55;
+  --logo-badge: #dd4c35;
+  --logo-symbol: #ffffff;
 }

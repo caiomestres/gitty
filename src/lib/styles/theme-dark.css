@@ -58,12 +58,8 @@
   --radius-xl: 16px;
   --radius-pill: 9999px;
 
-  /* Mascot colors - luminous/lighter variant for dark backgrounds */
-  --mascot-bg: #fff8f0;
-  --mascot-mane-primary: #ffe4c4;
-  --mascot-mane-secondary: #ffcc99;
-  --mascot-face: #c9a86c;
-  --mascot-face-shadow: rgba(255, 255, 255, 0.08);
-  --mascot-eye: #2a2a3e;
-  --mascot-muzzle: rgba(42, 42, 62, 0.5);
+  /* Logo colors - Dark */
+  --logo-folder: #d47060;
+  --logo-badge: #ff6b35;
+  --logo-symbol: #1a1a2e;
 }

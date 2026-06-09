@@ -63,14 +63,10 @@
   --radius-xl: 16px;
   --radius-pill: 9999px;
 
-  /* Mascot colors - green/yellow/blue national colors */
-  --mascot-bg: #ffdf00;
-  --mascot-mane-primary: #009c3b;
-  --mascot-mane-secondary: #007a2e;
-  --mascot-face: #002776;
-  --mascot-face-shadow: rgba(0, 39, 118, 0.15);
-  --mascot-eye: #002776;
-  --mascot-muzzle: rgba(0, 39, 118, 0.4);
+  /* Logo colors - Brasil */
+  --logo-folder: #009c3b;
+  --logo-badge: #ffdf00;
+  --logo-symbol: #002776;
 }
 
 /* Selection highlights */
