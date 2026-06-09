@@ -1,6 +1,7 @@
 mod commands;
 mod error;
 mod state;
+mod tray;
 
 use std::path::Path;
 
@@ -144,6 +145,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            tray::setup(app)?;
+
             let config_path = paths::config_file().expect("failed to resolve config path");
             let config = Config::load().unwrap_or_default();
             let state = AppState::new(config, config_path);
@@ -183,6 +186,15 @@ pub fn run() {
             });
 
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Close-to-tray: keep the background scheduler and liveness
+            // probes alive when the user closes the window. Quit via the
+            // tray menu.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let _ = window.hide();
+                api.prevent_close();
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::workspace::list_repositories,
